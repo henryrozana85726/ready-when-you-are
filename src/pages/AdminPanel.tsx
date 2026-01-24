@@ -133,6 +133,8 @@ const AdminDashboard: React.FC = () => {
 const ApiKeysManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState<'all' | 'fal_ai' | 'gmicloud'>('all');
   const [formData, setFormData] = useState({
     name: '',
     provider: 'fal_ai' as 'fal_ai' | 'gmicloud',
@@ -153,6 +155,20 @@ const ApiKeysManagement: React.FC = () => {
       return data;
     },
   });
+
+  // Filter API keys based on search query and provider filter
+  const filteredApiKeys = useMemo(() => {
+    if (!apiKeys) return [];
+    
+    return apiKeys.filter((key) => {
+      const matchesSearch = searchQuery.trim() === '' || 
+        key.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesProvider = providerFilter === 'all' || key.provider === providerFilter;
+      
+      return matchesSearch && matchesProvider;
+    });
+  }, [apiKeys, searchQuery, providerFilter]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -240,7 +256,7 @@ const ApiKeysManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-foreground">API Keys</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -318,6 +334,32 @@ const ApiKeysManagement: React.FC = () => {
         </Dialog>
       </div>
 
+      {/* Search and Filter Section */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select
+          value={providerFilter}
+          onValueChange={(v) => setProviderFilter(v as typeof providerFilter)}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Filter by provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Providers</SelectItem>
+            <SelectItem value="fal_ai">fal.ai (Server 1)</SelectItem>
+            <SelectItem value="gmicloud">GMI Cloud (Server 2)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="animate-spin text-primary" size={32} />
@@ -336,7 +378,7 @@ const ApiKeysManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {apiKeys?.map((key) => (
+              {filteredApiKeys?.map((key) => (
                 <TableRow key={key.id}>
                   <TableCell className="font-medium">{key.name}</TableCell>
                   <TableCell>
@@ -403,10 +445,10 @@ const ApiKeysManagement: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {(!apiKeys || apiKeys.length === 0) && (
+              {filteredApiKeys.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No API keys found. Add one to get started.
+                    {searchQuery || providerFilter !== 'all' ? 'No API keys match your search criteria.' : 'No API keys found. Add one to get started.'}
                   </TableCell>
                 </TableRow>
               )}
