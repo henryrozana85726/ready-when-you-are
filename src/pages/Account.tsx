@@ -1,7 +1,83 @@
-import React from 'react';
-import { User, Shield, CreditCard, Bell } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, Shield, CreditCard, Bell, Ticket, Coins, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const Account: React.FC = () => {
+  const { user, credits, refreshCredits } = useAuth();
+  const { toast } = useToast();
+  const [voucherCode, setVoucherCode] = useState('');
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
+  const handleRedeemVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voucherCode.trim() || !user) return;
+
+    setIsRedeeming(true);
+    try {
+      // Check if voucher exists
+      const { data: voucher, error: voucherError } = await supabase
+        .from('vouchers')
+        .select('*')
+        .eq('code', voucherCode.toUpperCase())
+        .single();
+
+      if (voucherError || !voucher) {
+        toast({
+          title: 'Voucher tidak valid',
+          description: 'Kode voucher tidak ditemukan atau sudah digunakan.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Add credits to user
+      const { data: currentCredits } = await supabase
+        .from('user_credits')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+
+      const newBalance = (Number(currentCredits?.balance) || 0) + voucher.credits;
+
+      const { error: updateError } = await supabase
+        .from('user_credits')
+        .update({ balance: newBalance })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Delete voucher after successful redemption
+      const { error: deleteError } = await supabase
+        .from('vouchers')
+        .delete()
+        .eq('id', voucher.id);
+
+      if (deleteError) throw deleteError;
+
+      // Refresh credits in context
+      await refreshCredits();
+
+      toast({
+        title: 'Voucher berhasil diredeem!',
+        description: `${voucher.credits.toLocaleString()} kredit telah ditambahkan ke akun Anda.`,
+      });
+
+      setVoucherCode('');
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
       <div>
@@ -11,7 +87,7 @@ const Account: React.FC = () => {
 
       <div className="grid md:grid-cols-3 gap-8">
         {/* Profile Card */}
-        <div className="md:col-span-1">
+        <div className="md:col-span-1 space-y-4">
           <div className="bg-card border border-border rounded-xl p-6 text-center space-y-4">
             <div className="w-24 h-24 mx-auto rounded-full gradient-brand p-1">
               <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
@@ -19,12 +95,49 @@ const Account: React.FC = () => {
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-foreground">Demo User</h3>
-              <p className="text-primary text-sm">Pro Plan</p>
+              <h3 className="text-xl font-bold text-foreground">
+                {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'}
+              </h3>
+              <p className="text-primary text-sm">{user?.email}</p>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-foreground">
+              <Coins size={20} className="text-primary" />
+              <span className="font-bold text-lg">{credits.toLocaleString()}</span>
+              <span className="text-muted-foreground text-sm">kredit</span>
             </div>
             <button className="w-full py-2 bg-muted border border-border hover:border-primary text-muted-foreground hover:text-foreground rounded-lg text-sm font-medium transition-colors">
               Edit Profile
             </button>
+          </div>
+
+          {/* Redeem Voucher Card */}
+          <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-2 text-foreground">
+              <Ticket size={20} className="text-primary" />
+              <h3 className="font-bold">Redeem Voucher</h3>
+            </div>
+            <form onSubmit={handleRedeemVoucher} className="space-y-3">
+              <Input
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                placeholder="Masukkan kode voucher"
+                className="font-mono text-center"
+              />
+              <Button
+                type="submit"
+                className="w-full gap-2"
+                disabled={isRedeeming || !voucherCode.trim()}
+              >
+                {isRedeeming ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Memproses...
+                  </>
+                ) : (
+                  'Redeem'
+                )}
+              </Button>
+            </form>
           </div>
         </div>
 
@@ -42,8 +155,8 @@ const Account: React.FC = () => {
             title="Billing"
             icon={<CreditCard size={20} className="text-accent" />}
           >
-            <SettingItem label="Current Plan" value="BS30 Pro ($29/mo)" />
-            <SettingItem label="Next Billing Date" value="Oct 15, 2025" />
+            <SettingItem label="Current Plan" value="BS30 Pro" />
+            <SettingItem label="Credits Balance" value={`${credits.toLocaleString()} kredit`} />
           </Section>
 
           <Section
