@@ -376,9 +376,12 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
       return { error: "No request ID returned from fal.ai" };
     }
 
-    // Poll for result
-    const statusEndpoint = `${endpoint}/requests/${requestId}/status`;
-    const resultEndpoint = `${endpoint}/requests/${requestId}`;
+    // Use the URLs provided by fal.ai response
+    const statusEndpoint = submitData.status_url || `${endpoint}/requests/${requestId}/status`;
+    const resultEndpoint = submitData.response_url || `${endpoint}/requests/${requestId}`;
+    
+    console.log(`[fal.ai] Status URL: ${statusEndpoint}`);
+    console.log(`[fal.ai] Response URL: ${resultEndpoint}`);
 
     let attempts = 0;
     const maxAttempts = 120; // 10 minutes max (5 second intervals)
@@ -387,14 +390,16 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
       await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
       
       const statusResponse = await fetch(statusEndpoint, {
+        method: 'GET',
         headers: {
           'Authorization': `Key ${apiKey}`,
+          'Content-Type': 'application/json',
         },
       });
 
       if (!statusResponse.ok) {
         const errorText = await statusResponse.text();
-        console.error(`[fal.ai] Status check error:`, errorText);
+        console.error(`[fal.ai] Status check error (${statusResponse.status}):`, errorText);
         attempts++;
         continue;
       }
@@ -405,8 +410,10 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
       if (statusData.status === 'COMPLETED') {
         // Get the result
         const resultResponse = await fetch(resultEndpoint, {
+          method: 'GET',
           headers: {
             'Authorization': `Key ${apiKey}`,
+            'Content-Type': 'application/json',
           },
         });
 
