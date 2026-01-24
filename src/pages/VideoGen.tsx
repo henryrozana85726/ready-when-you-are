@@ -245,7 +245,7 @@ const VideoGen: React.FC = () => {
   }, [generationType, selectedModel]);
 
   return (
-    <div className="max-w-7xl mx-auto grid lg:grid-cols-[1fr,1.5fr,1fr] gap-6 min-h-[calc(100vh-8rem)]">
+    <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
       {/* Controls */}
       <div className="flex flex-col gap-6">
         <div>
@@ -460,12 +460,9 @@ const VideoGen: React.FC = () => {
       </div>
 
       {/* Preview Area */}
-      <div className="bg-muted rounded-xl border border-border p-4 flex items-center justify-center relative overflow-hidden group min-h-[400px]">
+      <div className="bg-muted rounded-xl border border-border p-4 flex flex-col relative overflow-hidden min-h-[400px]">
         {status === GenerationStatus.IDLE && (
-          <div className="text-center text-muted-foreground">
-            <VideoPlaceholder />
-            <p className="mt-4">Select a model and enter a prompt to generate a video</p>
-          </div>
+          <VideoHistory />
         )}
 
         {status === GenerationStatus.LOADING && (
@@ -515,29 +512,8 @@ const VideoGen: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* History Panel */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <VideoHistory />
-      </div>
     </div>
   );
 };
-
-const VideoPlaceholder = () => (
-  <svg
-    className="w-24 h-24 mx-auto text-muted-foreground/50"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-    />
-  </svg>
-);
 
 export default VideoGen;

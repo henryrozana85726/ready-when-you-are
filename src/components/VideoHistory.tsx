@@ -40,12 +40,12 @@ const VideoHistory: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+      <div className="flex flex-col h-full">
+        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
           <Clock size={18} />
           History
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-2 flex-1">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-20 w-full" />
           ))}
@@ -56,7 +56,7 @@ const VideoHistory: React.FC = () => {
 
   if (error) {
     return (
-      <div className="text-destructive text-sm">
+      <div className="flex items-center justify-center h-full text-destructive text-sm">
         <AlertCircle size={16} className="inline mr-1" />
         Failed to load history
       </div>
@@ -65,24 +65,34 @@ const VideoHistory: React.FC = () => {
 
   if (!history || history.length === 0) {
     return (
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <Clock size={18} />
-          History
-        </h3>
-        <p className="text-sm text-muted-foreground">Belum ada video yang digenerate</p>
+      <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+        <svg
+          className="w-24 h-24 mx-auto text-muted-foreground/50 mb-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1}
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+        <p>Select a model and enter a prompt to generate a video</p>
+        <p className="text-xs mt-2">Your video history will appear here</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+    <div className="flex flex-col h-full">
+      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
         <Clock size={18} />
         History ({history.length})
       </h3>
-      <ScrollArea className="h-[400px] pr-4">
-        <div className="space-y-3">
+      <ScrollArea className="flex-1">
+        <div className="grid gap-3 pr-4">
           {history.map((item) => (
             <HistoryItem key={item.id} item={item} />
           ))}
