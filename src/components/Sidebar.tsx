@@ -142,7 +142,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
                 <Coins size={16} />
                 <span className="text-sm">Credits</span>
               </div>
-              <span className="font-bold text-foreground">${credits.toFixed(2)}</span>
+              <span className="font-bold text-foreground">{credits.toLocaleString()}</span>
             </div>
           )}
 
