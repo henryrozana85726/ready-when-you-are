@@ -400,6 +400,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           credits: number
+          expires_at: string | null
           id: string
           redeemed_at: string | null
           redeemed_by: string | null
@@ -410,6 +411,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credits?: number
+          expires_at?: string | null
           id?: string
           redeemed_at?: string | null
           redeemed_by?: string | null
@@ -420,6 +422,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credits?: number
+          expires_at?: string | null
           id?: string
           redeemed_at?: string | null
           redeemed_by?: string | null

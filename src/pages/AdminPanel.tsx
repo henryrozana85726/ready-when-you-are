@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
+import { format } from 'date-fns';
 import {
   Users,
   Key,
@@ -17,6 +18,7 @@ import {
   Ticket,
   Copy,
   Search,
+  CalendarIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +63,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // Dashboard Overview
 const AdminDashboard: React.FC = () => {
@@ -909,7 +913,7 @@ const VouchersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
-  const [formData, setFormData] = useState({ code: '', credits: 5 });
+  const [formData, setFormData] = useState<{ code: string; credits: number; expiresAt: Date | undefined }>({ code: '', credits: 5, expiresAt: undefined });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -926,15 +930,19 @@ const VouchersManagement: React.FC = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { code: string; credits: number }) => {
-      const { error } = await supabase.from('vouchers').insert([data]);
+    mutationFn: async (data: { code: string; credits: number; expiresAt: Date | undefined }) => {
+      const { error } = await supabase.from('vouchers').insert([{
+        code: data.code,
+        credits: data.credits,
+        expires_at: data.expiresAt?.toISOString() || null,
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: 'Voucher created successfully' });
       setIsDialogOpen(false);
-      setFormData({ code: '', credits: 5 });
+      setFormData({ code: '', credits: 5, expiresAt: undefined });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -962,6 +970,20 @@ const VouchersManagement: React.FC = () => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setFormData({ ...formData, code });
+  };
+
+  // Helper function to check if voucher is expired
+  const isVoucherExpired = (voucher: any) => {
+    if (!voucher.expires_at) return false;
+    return new Date(voucher.expires_at) < new Date();
+  };
+
+  // Get display status (considering expiry)
+  const getDisplayStatus = (voucher: any) => {
+    if (voucher.status === 'redeemed') return 'redeemed';
+    if (voucher.status === 'blocked') return 'blocked';
+    if (isVoucherExpired(voucher)) return 'expired';
+    return voucher.status;
   };
 
   const copyCode = (code: string) => {
@@ -1020,6 +1042,44 @@ const VouchersManagement: React.FC = () => {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Expiration Date (Optional)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.expiresAt && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.expiresAt ? format(formData.expiresAt, "PPP") : <span>No expiration</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.expiresAt}
+                      onSelect={(date) => setFormData({ ...formData, expiresAt: date })}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {formData.expiresAt && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setFormData({ ...formData, expiresAt: undefined })}
+                  >
+                    Clear expiration date
+                  </Button>
+                )}
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
@@ -1046,68 +1106,77 @@ const VouchersManagement: React.FC = () => {
                 <TableHead>Code</TableHead>
                 <TableHead>Credits</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>Expires</TableHead>
                 <TableHead>Redeemed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vouchers?.map((voucher) => (
-                <TableRow key={voucher.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <code className="font-mono bg-muted px-2 py-1 rounded">{voucher.code}</code>
-                      <button
-                        onClick={() => copyCode(voucher.code)}
-                        className="text-muted-foreground hover:text-foreground"
+              {vouchers?.map((voucher) => {
+                const displayStatus = getDisplayStatus(voucher);
+                return (
+                  <TableRow key={voucher.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <code className="font-mono bg-muted px-2 py-1 rounded">{voucher.code}</code>
+                        <button
+                          onClick={() => copyCode(voucher.code)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Coins size={14} className="text-primary" />
+                        <span>{voucher.credits.toLocaleString()}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        displayStatus === 'active' ? 'bg-success/20 text-success' :
+                        displayStatus === 'redeemed' ? 'bg-primary/20 text-primary' :
+                        displayStatus === 'expired' ? 'bg-warning/20 text-warning' :
+                        displayStatus === 'blocked' ? 'bg-destructive/20 text-destructive' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {displayStatus}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {voucher.expires_at ? (
+                        <span className={isVoucherExpired(voucher) ? 'text-warning' : ''}>
+                          {format(new Date(voucher.expires_at), "dd MMM yyyy")}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50">Never</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {voucher.redeemed_at ? (
+                        <span>{new Date(voucher.redeemed_at).toLocaleString()}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        disabled={displayStatus === 'redeemed'}
+                        onClick={() => {
+                          setVoucherToDelete({ id: voucher.id, code: voucher.code });
+                          setDeleteDialogOpen(true);
+                        }}
                       >
-                        <Copy size={14} />
-                      </button>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Coins size={14} className="text-primary" />
-                      <span>{voucher.credits.toLocaleString()}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      voucher.status === 'active' ? 'bg-success/20 text-success' :
-                      voucher.status === 'redeemed' ? 'bg-primary/20 text-primary' :
-                      voucher.status === 'expired' ? 'bg-muted text-muted-foreground' :
-                      voucher.status === 'blocked' ? 'bg-destructive/20 text-destructive' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {voucher.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {new Date(voucher.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {voucher.redeemed_at ? (
-                      <span>{new Date(voucher.redeemed_at).toLocaleString()}</span>
-                    ) : (
-                      <span className="text-muted-foreground/50">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      disabled={voucher.status === 'redeemed'}
-                      onClick={() => {
-                        setVoucherToDelete({ id: voucher.id, code: voucher.code });
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <Trash2 size={16} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {(!vouchers || vouchers.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
