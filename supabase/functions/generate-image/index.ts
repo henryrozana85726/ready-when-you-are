@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface ImageRequest {
+  generationId?: string; // Optional: if provided, update existing record instead of creating new
   prompt: string;
   aspectRatio?: string;
   resolution?: string;
@@ -52,9 +53,9 @@ serve(async (req) => {
     }
 
     const body: ImageRequest = await req.json();
-    const { prompt, aspectRatio, resolution, outputFormat, images, modelId, modelName, server, creditsToUse } = body;
+    const { generationId, prompt, aspectRatio, resolution, outputFormat, images, modelId, modelName, server, creditsToUse } = body;
 
-    console.log("Generating image:", { modelId, modelName, server, prompt: prompt?.substring(0, 50) });
+    console.log("Generating image:", { generationId, modelId, modelName, server, prompt: prompt?.substring(0, 50) });
 
     if (!prompt) {
       return new Response(
@@ -71,6 +72,13 @@ serve(async (req) => {
       .single();
 
     if (creditsError || !userCredits || userCredits.balance < creditsToUse) {
+      // Update generation record to failed if it exists
+      if (generationId) {
+        await supabase
+          .from('image_generations')
+          .update({ status: 'failed', error_message: 'Insufficient credits' })
+          .eq('id', generationId);
+      }
       return new Response(
         JSON.stringify({ error: "Insufficient credits" }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -93,33 +101,53 @@ serve(async (req) => {
 
     if (apiKeyError || !apiKeyData) {
       console.error("API key error:", apiKeyError);
+      // Update generation record to failed if it exists
+      if (generationId) {
+        await supabase
+          .from('image_generations')
+          .update({ status: 'failed', error_message: 'No available API key' })
+          .eq('id', generationId);
+      }
       return new Response(
         JSON.stringify({ error: "No available API key for this provider" }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create image generation record
-    const { data: generationRecord, error: insertError } = await supabase
-      .from('image_generations')
-      .insert({
-        user_id: user.id,
-        api_key_id: apiKeyData.id,
-        prompt,
-        aspect_ratio: aspectRatio,
-        resolution,
-        output_format: outputFormat,
-        model_id: modelId,
-        model_name: modelName,
-        server,
-        status: 'pending',
-        credits_used: creditsToUse,
-      })
-      .select()
-      .single();
+    // Use existing generation record or create new one
+    let recordId = generationId;
+    
+    if (!recordId) {
+      // Create new record if not provided (backward compatibility)
+      const { data: newRecord, error: insertError } = await supabase
+        .from('image_generations')
+        .insert({
+          user_id: user.id,
+          api_key_id: apiKeyData.id,
+          prompt,
+          aspect_ratio: aspectRatio,
+          resolution,
+          output_format: outputFormat,
+          model_id: modelId,
+          model_name: modelName,
+          server,
+          status: 'pending',
+          credits_used: creditsToUse,
+        })
+        .select()
+        .single();
 
-    if (insertError) {
-      console.error("Failed to create generation record:", insertError);
+      if (insertError) {
+        console.error("Failed to create generation record:", insertError);
+      } else {
+        recordId = newRecord?.id;
+      }
+    } else {
+      // Update existing record with api_key_id
+      await supabase
+        .from('image_generations')
+        .update({ api_key_id: apiKeyData.id })
+        .eq('id', generationId);
     }
 
     let imageUrl: string | undefined;
@@ -156,14 +184,14 @@ serve(async (req) => {
       console.error("Generation failed:", generationError);
       
       // Update generation record with error
-      if (generationRecord?.id) {
+      if (recordId) {
         await supabase
           .from('image_generations')
           .update({ 
             status: 'failed', 
             error_message: generationError || 'Failed to generate image' 
           })
-          .eq('id', generationRecord.id);
+          .eq('id', recordId);
       }
       
       return new Response(
@@ -173,14 +201,14 @@ serve(async (req) => {
     }
 
     // Update generation record with success
-    if (generationRecord?.id) {
+    if (recordId) {
       await supabase
         .from('image_generations')
         .update({ 
           status: 'completed', 
           output_url: imageUrl 
         })
-        .eq('id', generationRecord.id);
+        .eq('id', recordId);
     }
 
     // Deduct credits from user

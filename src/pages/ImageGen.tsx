@@ -177,11 +177,40 @@ const ImageGen: React.FC = () => {
       // Convert images to base64
       const imageBase64s = await Promise.all(images.map(fileToBase64));
 
-      // Immediately invalidate history to show pending thumbnail
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Create pending record FIRST so it shows immediately in history
+      const { data: pendingRecord, error: insertError } = await supabase
+        .from('image_generations')
+        .insert({
+          user_id: user.id,
+          prompt,
+          aspect_ratio: aspectRatio,
+          resolution,
+          output_format: outputFormat,
+          model_id: selectedModel.id,
+          model_name: selectedModel.name,
+          server,
+          status: 'pending',
+          credits_used: currentPrice,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Failed to create pending record:', insertError);
+        throw new Error('Failed to start generation');
+      }
+
+      // Immediately refresh history to show the pending thumbnail
       queryClient.invalidateQueries({ queryKey: ['image-history'] });
 
+      // Now call the edge function with the generation ID
       const { data, error: fnError } = await supabase.functions.invoke('generate-image', {
         body: {
+          generationId: pendingRecord.id,
           prompt,
           aspectRatio,
           resolution,
