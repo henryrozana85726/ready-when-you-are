@@ -409,6 +409,14 @@ const ApiKeysManagement: React.FC = () => {
 
 // Users Management
 const UsersManagement: React.FC = () => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    displayName: '',
+    role: 'user' as 'admin' | 'premium' | 'user',
+    credits: 0,
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -436,6 +444,54 @@ const UsersManagement: React.FC = () => {
         role: rolesRes.data?.find((r) => r.user_id === profile.user_id)?.role || 'user',
         balance: creditsRes.data?.find((c) => c.user_id === profile.user_id)?.balance || 0,
       }));
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      // Use edge function to create user (admin only)
+      const { data: result, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: data.email,
+          password: data.password,
+          displayName: data.displayName,
+          role: data.role,
+          credits: data.credits,
+        },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      toast({ title: 'User created successfully' });
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      // Use edge function to delete user (admin only)
+      const { data: result, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      toast({ title: 'User deleted successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -473,9 +529,112 @@ const UsersManagement: React.FC = () => {
     },
   });
 
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      password: '',
+      displayName: '',
+      role: 'user',
+      credits: 0,
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createUserMutation.mutate(formData);
+  };
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground">Users</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground">Users</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2" onClick={resetForm}>
+              <Plus size={16} /> Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New User</DialogTitle>
+              <DialogDescription>
+                Create a new user account with specified role and credits.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-email">Email</Label>
+                <Input
+                  id="user-email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="user@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-password">Password</Label>
+                <Input
+                  id="user-password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-displayName">Display Name</Label>
+                <Input
+                  id="user-displayName"
+                  value={formData.displayName}
+                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-role">Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(v) => setFormData({ ...formData, role: v as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-credits">Initial Credits</Label>
+                <Input
+                  id="user-credits"
+                  type="number"
+                  step="0.01"
+                  value={formData.credits}
+                  onChange={(e) => setFormData({ ...formData, credits: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createUserMutation.isPending}>
+                  {createUserMutation.isPending && (
+                    <Loader2 className="animate-spin mr-2" size={16} />
+                  )}
+                  Create User
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-8">
@@ -491,6 +650,7 @@ const UsersManagement: React.FC = () => {
                 <TableHead>Role</TableHead>
                 <TableHead>Credits</TableHead>
                 <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -535,8 +695,34 @@ const UsersManagement: React.FC = () => {
                   <TableCell className="text-muted-foreground text-sm">
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                          deleteUserMutation.mutate(user.user_id);
+                        }
+                      }}
+                      disabled={deleteUserMutation.isPending}
+                    >
+                      {deleteUserMutation.isPending ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
+              {(!users || users.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No users found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
