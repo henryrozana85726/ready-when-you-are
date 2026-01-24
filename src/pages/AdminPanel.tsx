@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import {
   Users,
@@ -16,6 +16,7 @@ import {
   ToggleRight,
   Ticket,
   Copy,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -422,6 +423,8 @@ const UsersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'premium' | 'user'>('all');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -458,6 +461,21 @@ const UsersManagement: React.FC = () => {
       }));
     },
   });
+
+  // Filter users based on search query and role filter
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    
+    return users.filter((user) => {
+      const matchesSearch = searchQuery.trim() === '' || 
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.display_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchQuery, roleFilter]);
 
   const createUserMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -558,7 +576,7 @@ const UsersManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-foreground">Users</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -648,6 +666,33 @@ const UsersManagement: React.FC = () => {
         </Dialog>
       </div>
 
+      {/* Search and Filter Section */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search by email or name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select
+          value={roleFilter}
+          onValueChange={(v) => setRoleFilter(v as typeof roleFilter)}
+        >
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="premium">Premium</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="animate-spin text-primary" size={32} />
@@ -666,7 +711,7 @@ const UsersManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((user) => (
+              {filteredUsers?.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
                   <TableCell>{user.display_name || '-'}</TableCell>
@@ -727,10 +772,10 @@ const UsersManagement: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {(!users || users.length === 0) && (
+              {filteredUsers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No users found.
+                    {searchQuery || roleFilter !== 'all' ? 'No users match your search criteria.' : 'No users found.'}
                   </TableCell>
                 </TableRow>
               )}
