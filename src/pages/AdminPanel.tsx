@@ -927,12 +927,34 @@ const VouchersManagement: React.FC = () => {
   const { data: vouchers, isLoading } = useQuery({
     queryKey: ['vouchers'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch vouchers
+      const { data: vouchersData, error: vouchersError } = await supabase
         .from('vouchers')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+      if (vouchersError) throw vouchersError;
+
+      // Get unique redeemer IDs
+      const redeemerIds = [...new Set(vouchersData?.filter(v => v.redeemed_by).map(v => v.redeemed_by) || [])];
+      
+      // Fetch redeemer profiles if any
+      let redeemersMap: Record<string, { display_name: string | null; email: string | null }> = {};
+      if (redeemerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, email')
+          .in('user_id', redeemerIds);
+        
+        profiles?.forEach(p => {
+          redeemersMap[p.user_id] = { display_name: p.display_name, email: p.email };
+        });
+      }
+
+      // Merge redeemer info into vouchers
+      return vouchersData?.map(v => ({
+        ...v,
+        redeemer: v.redeemed_by ? redeemersMap[v.redeemed_by] || null : null
+      })) || [];
     },
   });
 
@@ -1009,6 +1031,27 @@ const VouchersManagement: React.FC = () => {
     onSuccess: (newStatus) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: newStatus === 'blocked' ? 'Voucher blocked' : 'Voucher unblocked' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('vouchers')
+        .update({ 
+          status: 'active',
+          redeemed_by: null,
+          redeemed_at: null
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      toast({ title: 'Voucher reactivated', description: 'Voucher can be redeemed again.' });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -1346,13 +1389,33 @@ const VouchersManagement: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {voucher.redeemed_at ? (
-                        <span>{new Date(voucher.redeemed_at).toLocaleString()}</span>
+                        <div className="space-y-1">
+                          <span>{new Date(voucher.redeemed_at).toLocaleString()}</span>
+                          {voucher.redeemer && (
+                            <div className="text-xs text-primary">
+                              oleh: {voucher.redeemer.display_name || voucher.redeemer.email}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/50">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {/* Reactivate button - only for redeemed vouchers */}
+                        {voucher.status === 'redeemed' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-success hover:text-success"
+                            onClick={() => reactivateMutation.mutate(voucher.id)}
+                            disabled={reactivateMutation.isPending}
+                            title="Reactivate voucher"
+                          >
+                            <ToggleRight size={16} />
+                          </Button>
+                        )}
                         {/* Block/Unblock button - only for active or blocked vouchers */}
                         {(voucher.status === 'active' || voucher.status === 'blocked') && (
                           <Button
@@ -1361,6 +1424,7 @@ const VouchersManagement: React.FC = () => {
                             className={voucher.status === 'blocked' ? 'text-success hover:text-success' : 'text-warning hover:text-warning'}
                             onClick={() => toggleBlockMutation.mutate({ id: voucher.id, currentStatus: voucher.status })}
                             disabled={toggleBlockMutation.isPending}
+                            title={voucher.status === 'blocked' ? 'Unblock voucher' : 'Block voucher'}
                           >
                             {voucher.status === 'blocked' ? <Check size={16} /> : <Ban size={16} />}
                           </Button>
@@ -1369,11 +1433,11 @@ const VouchersManagement: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          disabled={displayStatus === 'redeemed'}
                           onClick={() => {
                             setVoucherToDelete({ id: voucher.id, code: voucher.code });
                             setDeleteDialogOpen(true);
                           }}
+                          title="Delete voucher"
                         >
                           <Trash2 size={16} />
                         </Button>
