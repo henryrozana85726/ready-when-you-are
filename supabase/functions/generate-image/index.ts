@@ -77,8 +77,8 @@ serve(async (req) => {
       );
     }
 
-    // Determine provider based on server
-    const provider = server === 'server1' ? 'fal.ai' : 'gmi-cloud';
+    // Determine provider based on server (match database values)
+    const provider = server === 'server1' ? 'fal_ai' : 'gmicloud';
 
     // Get active API key for the provider
     const { data: apiKeyData, error: apiKeyError } = await supabase
