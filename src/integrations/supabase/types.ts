@@ -14,16 +14,379 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          credits: number
+          id: string
+          is_active: boolean
+          name: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          credits?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          credits?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          amount: number
+          api_key_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+          video_generation_id: string | null
+        }
+        Insert: {
+          amount: number
+          api_key_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+          video_generation_id?: string | null
+        }
+        Update: {
+          amount?: number
+          api_key_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+          video_generation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_transactions_video_generation_id_fkey"
+            columns: ["video_generation_id"]
+            isOneToOne: false
+            referencedRelation: "video_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_uploads: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      model_pricing: {
+        Row: {
+          audio_on: boolean | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          mode: string | null
+          model_id: string
+          price: number
+          resolution: string | null
+        }
+        Insert: {
+          audio_on?: boolean | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          mode?: string | null
+          model_id: string
+          price: number
+          resolution?: string | null
+        }
+        Update: {
+          audio_on?: boolean | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          mode?: string | null
+          model_id?: string
+          price?: number
+          resolution?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_pricing_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "video_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          balance: number
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      video_generations: {
+        Row: {
+          api_key_id: string | null
+          aspect_ratio: string | null
+          audio_enabled: boolean | null
+          created_at: string
+          credits_used: number
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          input_media_ids: string[] | null
+          mode: string | null
+          model_id: string
+          negative_prompt: string | null
+          output_url: string | null
+          prompt: string
+          resolution: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_id?: string | null
+          aspect_ratio?: string | null
+          audio_enabled?: boolean | null
+          created_at?: string
+          credits_used?: number
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          input_media_ids?: string[] | null
+          mode?: string | null
+          model_id: string
+          negative_prompt?: string | null
+          output_url?: string | null
+          prompt: string
+          resolution?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_id?: string | null
+          aspect_ratio?: string | null
+          audio_enabled?: boolean | null
+          created_at?: string
+          credits_used?: number
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          input_media_ids?: string[] | null
+          mode?: string | null
+          model_id?: string
+          negative_prompt?: string | null
+          output_url?: string | null
+          prompt?: string
+          resolution?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_generations_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_generations_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "video_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_models: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_name: string
+          enabled_for_admin: boolean
+          enabled_for_premium: boolean
+          enabled_for_user: boolean
+          id: string
+          max_images: number
+          name: string
+          provider: string
+          server: string
+          supports_audio: boolean
+          supports_image_to_video: boolean
+          supports_negative_prompt: boolean
+          supports_text_to_video: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_name: string
+          enabled_for_admin?: boolean
+          enabled_for_premium?: boolean
+          enabled_for_user?: boolean
+          id?: string
+          max_images?: number
+          name: string
+          provider: string
+          server: string
+          supports_audio?: boolean
+          supports_image_to_video?: boolean
+          supports_negative_prompt?: boolean
+          supports_text_to_video?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          enabled_for_admin?: boolean
+          enabled_for_premium?: boolean
+          enabled_for_user?: boolean
+          id?: string
+          max_images?: number
+          name?: string
+          provider?: string
+          server?: string
+          supports_audio?: boolean
+          supports_image_to_video?: boolean
+          supports_negative_prompt?: boolean
+          supports_text_to_video?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_model_access: { Args: { model_id: string }; Returns: boolean }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "premium" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +513,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "premium", "user"],
+    },
   },
 } as const
