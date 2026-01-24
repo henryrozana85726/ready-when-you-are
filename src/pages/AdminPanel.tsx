@@ -133,6 +133,8 @@ const AdminDashboard: React.FC = () => {
 const ApiKeysManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [keyToDelete, setKeyToDelete] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<'all' | 'fal_ai' | 'gmicloud'>('all');
   const [formData, setFormData] = useState({
@@ -438,7 +440,10 @@ const ApiKeysManagement: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(key.id)}
+                      onClick={() => {
+                        setKeyToDelete({ id: key.id, name: key.name });
+                        setDeleteDialogOpen(true);
+                      }}
                     >
                       <Trash2 size={16} />
                     </Button>
@@ -456,6 +461,35 @@ const ApiKeysManagement: React.FC = () => {
           </Table>
         </div>
       )}
+
+      {/* Delete API Key Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-semibold text-foreground">{keyToDelete?.name}</span>? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setKeyToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (keyToDelete) {
+                  deleteMutation.mutate(keyToDelete.id);
+                  setDeleteDialogOpen(false);
+                  setKeyToDelete(null);
+                }
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+              Delete API Key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -873,6 +907,8 @@ const ModelsManagement: React.FC = () => {
 // Vouchers Management
 const VouchersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
   const [formData, setFormData] = useState({ code: '', credits: 5 });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1041,7 +1077,10 @@ const VouchersManagement: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(voucher.id)}
+                      onClick={() => {
+                        setVoucherToDelete({ id: voucher.id, code: voucher.code });
+                        setDeleteDialogOpen(true);
+                      }}
                     >
                       <Trash2 size={16} />
                     </Button>
@@ -1059,6 +1098,35 @@ const VouchersManagement: React.FC = () => {
           </Table>
         </div>
       )}
+
+      {/* Delete Voucher Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Voucher</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete voucher <code className="font-mono bg-muted px-1 py-0.5 rounded">{voucherToDelete?.code}</code>? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setVoucherToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (voucherToDelete) {
+                  deleteMutation.mutate(voucherToDelete.id);
+                  setDeleteDialogOpen(false);
+                  setVoucherToDelete(null);
+                }
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+              Delete Voucher
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
