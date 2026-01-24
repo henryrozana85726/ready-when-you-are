@@ -462,7 +462,7 @@ const VideoGen: React.FC = () => {
       {/* Preview Area */}
       <div className="bg-muted rounded-xl border border-border p-4 flex flex-col relative overflow-hidden min-h-[400px]">
         {status === GenerationStatus.IDLE && (
-          <VideoHistory />
+          <VideoHistory onUsePrompt={(p, np) => { setPrompt(p); if (np) setNegativePrompt(np); }} />
         )}
 
         {status === GenerationStatus.LOADING && (
