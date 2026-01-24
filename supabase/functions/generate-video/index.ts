@@ -133,6 +133,37 @@ serve(async (req) => {
     
     console.log(`[generate-video] Generation type: ${generationType}`);
 
+    // Determine mode for video_generations table
+    const mode = generationType === 'text-to-video' ? 'text-to-video' : 
+                 generationType === 'image-to-video' ? 'image-to-video' : 'first-last-frame';
+
+    // Create a pending history row immediately so user can see progress
+    const { data: pendingRow, error: pendingInsertError } = await supabase
+      .from('video_generations')
+      .insert({
+        user_id: user.id,
+        model_id: actualModelId,
+        model_name: modelName,
+        api_key_id: apiKeyRecord.id,
+        prompt,
+        negative_prompt: negativePrompt,
+        aspect_ratio: aspectRatio,
+        duration_seconds: duration,
+        resolution,
+        audio_enabled: audioEnabled,
+        mode,
+        credits_used: creditsToUse,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    if (pendingInsertError) {
+      console.error('[generate-video] Failed to create pending history row:', pendingInsertError);
+    }
+
+    const generationRowId = pendingRow?.id;
+
     let result;
     
     if (server === 'server1') {
@@ -157,30 +188,38 @@ serve(async (req) => {
       );
     }
 
-    // Determine mode for video_generations table
-    const mode = generationType === 'text-to-video' ? 'text-to-video' : 
-                 generationType === 'image-to-video' ? 'image-to-video' : 'first-last-frame';
-
     if (result.error) {
       console.error("[generate-video] Generation error:", result.error);
-      
-      // Save failed generation to history
-      await supabase.from('video_generations').insert({
-        user_id: user.id,
-        model_id: actualModelId,
-        model_name: modelName,
-        api_key_id: apiKeyRecord.id,
-        prompt,
-        negative_prompt: negativePrompt,
-        aspect_ratio: aspectRatio,
-        duration_seconds: duration,
-        resolution,
-        audio_enabled: audioEnabled,
-        mode,
-        credits_used: 0,
-        status: 'failed',
-        error_message: result.error,
-      });
+
+      // Update pending row to failed (fallback to insert if pending row missing)
+      if (generationRowId) {
+        await supabase
+          .from('video_generations')
+          .update({
+            status: 'failed',
+            error_message: result.error,
+            credits_used: 0,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', generationRowId);
+      } else {
+        await supabase.from('video_generations').insert({
+          user_id: user.id,
+          model_id: actualModelId,
+          model_name: modelName,
+          api_key_id: apiKeyRecord.id,
+          prompt,
+          negative_prompt: negativePrompt,
+          aspect_ratio: aspectRatio,
+          duration_seconds: duration,
+          resolution,
+          audio_enabled: audioEnabled,
+          mode,
+          credits_used: 0,
+          status: 'failed',
+          error_message: result.error,
+        });
+      }
 
       return new Response(
         JSON.stringify({ error: result.error }),
@@ -224,38 +263,60 @@ serve(async (req) => {
       }
     }
 
-    // Save successful generation to video_generations
-    const { data: videoGeneration, error: insertError } = await supabase
-      .from('video_generations')
-      .insert({
-        user_id: user.id,
-        model_id: actualModelId,
-        model_name: modelName,
-        api_key_id: apiKeyRecord.id,
-        prompt,
-        negative_prompt: negativePrompt,
-        aspect_ratio: aspectRatio,
-        duration_seconds: duration,
-        resolution,
-        audio_enabled: audioEnabled,
-        mode,
-        credits_used: creditsToUse,
-        status: 'completed',
-        output_url: result.videoUrl,
-      })
-      .select('id')
-      .single();
+    // Update pending row to completed (fallback to insert if pending row missing)
+    let finalGenerationId: string | undefined = generationRowId;
+    if (generationRowId) {
+      const { error: updateGenerationError } = await supabase
+        .from('video_generations')
+        .update({
+          status: 'completed',
+          output_url: result.videoUrl,
+          credits_used: creditsToUse,
+          error_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', generationRowId);
 
-    if (insertError) {
-      console.error("[generate-video] Failed to save video generation:", insertError);
+      if (updateGenerationError) {
+        console.error('[generate-video] Failed to update video generation:', updateGenerationError);
+      } else {
+        console.log('[generate-video] Updated video generation:', generationRowId);
+      }
     } else {
-      console.log("[generate-video] Saved video generation:", videoGeneration?.id);
+      const { data: inserted, error: insertError } = await supabase
+        .from('video_generations')
+        .insert({
+          user_id: user.id,
+          model_id: actualModelId,
+          model_name: modelName,
+          api_key_id: apiKeyRecord.id,
+          prompt,
+          negative_prompt: negativePrompt,
+          aspect_ratio: aspectRatio,
+          duration_seconds: duration,
+          resolution,
+          audio_enabled: audioEnabled,
+          mode,
+          credits_used: creditsToUse,
+          status: 'completed',
+          output_url: result.videoUrl,
+        })
+        .select('id')
+        .single();
 
-      // Record credit transaction
+      if (insertError) {
+        console.error('[generate-video] Failed to save video generation:', insertError);
+      } else {
+        finalGenerationId = inserted?.id;
+      }
+    }
+
+    // Record credit transaction (only if we have a generation id)
+    if (finalGenerationId) {
       await supabase.from('credit_transactions').insert({
         user_id: user.id,
         api_key_id: apiKeyRecord.id,
-        video_generation_id: videoGeneration?.id,
+        video_generation_id: finalGenerationId,
         amount: -creditsToUse,
         transaction_type: 'generation',
         description: `Video generation: ${mode} - ${duration}s ${resolution}${audioEnabled ? ' with audio' : ''}`,
@@ -267,7 +328,7 @@ serve(async (req) => {
         videoUrl: result.videoUrl,
         generationType,
         creditsUsed: creditsToUse,
-        generationId: videoGeneration?.id,
+        generationId: finalGenerationId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -338,7 +399,8 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
   } else if (modelName === 'kling-v2.6') {
     requestBody.duration = duration === 5 ? '5' : '10';
     requestBody.aspect_ratio = aspectRatio;
-    requestBody.with_audio = audioEnabled; // Explicitly set to true or false
+    // fal.ai kling v2.6 uses generate_audio (default true). Must send false explicitly.
+    requestBody.generate_audio = audioEnabled;
   }
 
   // Add negative prompt if provided

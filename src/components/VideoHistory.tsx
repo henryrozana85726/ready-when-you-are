@@ -37,6 +37,11 @@ const VideoHistory: React.FC = () => {
       if (error) throw error;
       return data as VideoGeneration[];
     },
+    // While there is any pending item, keep polling so status/output updates show up automatically
+    refetchInterval: (query) => {
+      const data = query.state.data as VideoGeneration[] | undefined;
+      return data?.some((x) => x.status === 'pending') ? 5000 : false;
+    },
   });
 
   if (isLoading) {
