@@ -60,7 +60,7 @@ const VideoHistory: React.FC = () => {
           <Clock size={18} />
           History
         </h3>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="aspect-video w-full rounded-lg" />
           ))}
@@ -107,7 +107,7 @@ const VideoHistory: React.FC = () => {
         History ({history.length})
       </h3>
       <ScrollArea className="flex-1">
-        <div className="grid grid-cols-4 gap-2 pr-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pr-4">
           {history.map((item) => (
             <ThumbnailItem
               key={item.id}
