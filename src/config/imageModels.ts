@@ -130,12 +130,12 @@ export const server1Models: ImageModelWithPricing[] = [
   },
   {
     id: 'server1-seedream-4.5',
-    name: 'fal-ai/seedream-4.5',
+    name: 'fal-ai/bytedance/seedream/v4.5/text-to-image',
     displayName: 'Seedream 4.5',
     server: 'server1',
     provider: 'fal.ai',
     description: 'Seedream 4.5 high-quality image generation',
-    apiDocs: 'https://fal.ai/models/fal-ai/seedream-4.5/api',
+    apiDocs: 'https://fal.ai/models/fal-ai/bytedance/seedream/v4.5/text-to-image/api',
     
     supportsTextToImage: true,
     supportsImageToImage: true,

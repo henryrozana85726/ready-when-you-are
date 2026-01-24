@@ -268,12 +268,19 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
     const isImageToImage = images.length > 0;
     
     // Build endpoint based on model and mode
-    let endpoint = `https://queue.fal.run/${modelName}`;
+    let actualModelName = modelName;
     
     // For nano-banana-pro with images, use edit endpoint
     if (modelName === 'fal-ai/nano-banana-pro' && isImageToImage) {
-      endpoint = 'https://queue.fal.run/fal-ai/nano-banana-pro/edit';
+      actualModelName = 'fal-ai/nano-banana-pro/edit';
     }
+    
+    // For Seedream 4.5 with images, use edit endpoint instead of text-to-image
+    if (modelName === 'fal-ai/bytedance/seedream/v4.5/text-to-image' && isImageToImage) {
+      actualModelName = 'fal-ai/bytedance/seedream/v4.5/edit';
+    }
+    
+    const endpoint = `https://queue.fal.run/${actualModelName}`;
 
     // Build request body based on model
     const requestBody: any = {
