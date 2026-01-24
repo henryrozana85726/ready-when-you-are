@@ -15,6 +15,7 @@ interface VideoRequest {
   audioEnabled?: boolean;
   images?: string[]; // base64 encoded images
   modelId: string;
+  modelName: string; // e.g., 'veo-3.1-fast', 'kling-v2.6'
   server: 'server1' | 'server2';
   creditsToUse: number; // credits calculated by frontend
 }
@@ -65,7 +66,7 @@ serve(async (req) => {
     }
 
     const body: VideoRequest = await req.json();
-    const { prompt, negativePrompt, aspectRatio = '16:9', duration = 8, resolution = '1080p', audioEnabled = false, images = [], modelId, server, creditsToUse = 0 } = body;
+    const { prompt, negativePrompt, aspectRatio = '16:9', duration = 8, resolution = '1080p', audioEnabled = false, images = [], modelId, modelName, server, creditsToUse = 0 } = body;
 
     if (!prompt) {
       return new Response(
@@ -127,6 +128,7 @@ serve(async (req) => {
       // fal.ai API
       result = await generateWithFalAI({
         apiKey: apiKeyRecord.api_key,
+        modelName: modelName || 'veo-3.1-fast',
         prompt,
         negativePrompt,
         aspectRatio,
@@ -268,6 +270,7 @@ serve(async (req) => {
 
 interface FalAIParams {
   apiKey: string;
+  modelName: string;
   prompt: string;
   negativePrompt?: string;
   aspectRatio: string;
@@ -278,36 +281,53 @@ interface FalAIParams {
   generationType: 'text-to-video' | 'image-to-video' | 'first-last-frame';
 }
 
-async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: string; error?: string }> {
-  const { apiKey, prompt, negativePrompt, aspectRatio, duration, resolution, audioEnabled, images, generationType } = params;
-
-  // Determine the correct endpoint based on generation type
-  let endpoint: string;
-  switch (generationType) {
-    case 'text-to-video':
-      endpoint = 'https://queue.fal.run/fal-ai/veo3.1/fast';
+// Get fal.ai endpoint based on model and generation type
+function getFalAIEndpoint(modelName: string, generationType: string): string {
+  switch (modelName) {
+    case 'veo-3.1-fast':
+      switch (generationType) {
+        case 'text-to-video': return 'https://queue.fal.run/fal-ai/veo3.1/fast';
+        case 'image-to-video': return 'https://queue.fal.run/fal-ai/veo3.1/fast/image-to-video';
+        case 'first-last-frame': return 'https://queue.fal.run/fal-ai/veo3.1/fast/first-last-frame-to-video';
+      }
       break;
-    case 'image-to-video':
-      endpoint = 'https://queue.fal.run/fal-ai/veo3.1/fast/image-to-video';
-      break;
-    case 'first-last-frame':
-      endpoint = 'https://queue.fal.run/fal-ai/veo3.1/fast/first-last-frame-to-video';
+    case 'kling-v2.6':
+      switch (generationType) {
+        case 'text-to-video': return 'https://queue.fal.run/fal-ai/kling-video/v2.6/pro/text-to-video';
+        case 'image-to-video': return 'https://queue.fal.run/fal-ai/kling-video/v2.6/pro/image-to-video';
+        case 'first-last-frame': return 'https://queue.fal.run/fal-ai/kling-video/v2.6/pro/image-to-video'; // Use image-to-video for start-end
+      }
       break;
   }
+  // Default to veo 3.1 fast
+  return 'https://queue.fal.run/fal-ai/veo3.1/fast';
+}
 
-  console.log(`[fal.ai] Using endpoint: ${endpoint}`);
+async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: string; error?: string }> {
+  const { apiKey, modelName, prompt, negativePrompt, aspectRatio, duration, resolution, audioEnabled, images, generationType } = params;
 
-  // Build request body based on generation type
+  const endpoint = getFalAIEndpoint(modelName, generationType);
+  console.log(`[fal.ai] Model: ${modelName}, Type: ${generationType}, Endpoint: ${endpoint}`);
+
+  // Build request body based on model and generation type
   const requestBody: Record<string, unknown> = {
     prompt,
-    duration: `${duration}s`,
-    resolution: resolution,
-    generate_audio: audioEnabled,
   };
 
-  // Add aspect ratio (use 'auto' for image modes if specified, otherwise use the ratio)
-  if (aspectRatio !== 'auto') {
+  // Model-specific parameters
+  if (modelName === 'veo-3.1-fast') {
+    requestBody.duration = `${duration}s`;
+    requestBody.resolution = resolution;
+    requestBody.generate_audio = audioEnabled;
+    if (aspectRatio !== 'auto') {
+      requestBody.aspect_ratio = aspectRatio;
+    }
+  } else if (modelName === 'kling-v2.6') {
+    requestBody.duration = duration === 5 ? '5' : '10';
     requestBody.aspect_ratio = aspectRatio;
+    if (audioEnabled) {
+      requestBody.with_audio = true;
+    }
   }
 
   // Add negative prompt if provided
@@ -319,8 +339,14 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
   if (generationType === 'image-to-video' && images.length >= 1) {
     requestBody.image_url = images[0];
   } else if (generationType === 'first-last-frame' && images.length >= 2) {
-    requestBody.first_frame_image = images[0];
-    requestBody.last_frame_image = images[1];
+    if (modelName === 'kling-v2.6') {
+      // Kling uses start/end image approach via image-to-video
+      requestBody.image_url = images[0];
+      requestBody.tail_image_url = images[1];
+    } else {
+      requestBody.first_frame_image = images[0];
+      requestBody.last_frame_image = images[1];
+    }
   }
 
   console.log(`[fal.ai] Request body:`, JSON.stringify(requestBody, null, 2));

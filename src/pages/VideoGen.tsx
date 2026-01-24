@@ -150,6 +150,7 @@ const VideoGen: React.FC = () => {
           audioEnabled,
           images: imageBase64s,
           modelId: selectedModel.id,
+          modelName: selectedModel.name,
           server,
           creditsToUse: currentPrice,
         },
