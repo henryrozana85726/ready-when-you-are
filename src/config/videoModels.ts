@@ -143,7 +143,7 @@ export const server1Models: ModelWithPricing[] = [
     provider: 'fal_ai',
     supportsTextToVideo: true,
     supportsImageToVideo: true,
-    supportsFirstLastFrame: false,
+    supportsFirstLastFrame: true,
     supportsAudio: true,
     supportsNegativePrompt: true,
     maxImages: 2,
