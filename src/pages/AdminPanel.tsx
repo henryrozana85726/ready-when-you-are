@@ -19,6 +19,9 @@ import {
   Copy,
   Search,
   CalendarIcon,
+  Ban,
+  Check,
+  Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -911,9 +914,13 @@ const ModelsManagement: React.FC = () => {
 // Vouchers Management
 const VouchersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
   const [formData, setFormData] = useState<{ code: string; credits: number; expiresAt: Date | undefined }>({ code: '', credits: 5, expiresAt: undefined });
+  const [bulkFormData, setBulkFormData] = useState({ prefix: '', count: 5, credits: 5, expiresAt: undefined as Date | undefined });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'redeemed' | 'expired' | 'blocked'>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -949,6 +956,35 @@ const VouchersManagement: React.FC = () => {
     },
   });
 
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (data: { prefix: string; count: number; credits: number; expiresAt: Date | undefined }) => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const vouchers = [];
+      for (let i = 0; i < data.count; i++) {
+        let suffix = '';
+        for (let j = 0; j < 6; j++) {
+          suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        vouchers.push({
+          code: data.prefix ? `${data.prefix}-${suffix}` : suffix,
+          credits: data.credits,
+          expires_at: data.expiresAt?.toISOString() || null,
+        });
+      }
+      const { error } = await supabase.from('vouchers').insert(vouchers);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      toast({ title: 'Vouchers created successfully' });
+      setIsBulkDialogOpen(false);
+      setBulkFormData({ prefix: '', count: 5, credits: 5, expiresAt: undefined });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('vouchers').delete().eq('id', id);
@@ -957,6 +993,22 @@ const VouchersManagement: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: 'Voucher deleted' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const toggleBlockMutation = useMutation({
+    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
+      const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
+      const { error } = await supabase.from('vouchers').update({ status: newStatus }).eq('id', id);
+      if (error) throw error;
+      return newStatus;
+    },
+    onSuccess: (newStatus) => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      toast({ title: newStatus === 'blocked' ? 'Voucher blocked' : 'Voucher unblocked' });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -986,6 +1038,17 @@ const VouchersManagement: React.FC = () => {
     return voucher.status;
   };
 
+  // Filter vouchers
+  const filteredVouchers = useMemo(() => {
+    if (!vouchers) return [];
+    return vouchers.filter((voucher) => {
+      const displayStatus = getDisplayStatus(voucher);
+      const matchesSearch = voucher.code.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || displayStatus === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [vouchers, searchQuery, statusFilter]);
+
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast({ title: 'Code copied to clipboard' });
@@ -997,101 +1060,229 @@ const VouchersManagement: React.FC = () => {
     createMutation.mutate(formData);
   };
 
+  const handleBulkSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (bulkFormData.count < 1 || bulkFormData.count > 100) {
+      toast({ title: 'Error', description: 'Count must be between 1 and 100', variant: 'destructive' });
+      return;
+    }
+    bulkCreateMutation.mutate(bulkFormData);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-foreground">Vouchers</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus size={16} /> Create Voucher
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Voucher</DialogTitle>
-              <DialogDescription>
-                Create a new voucher code for users to redeem credits.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Voucher Code</Label>
-                <div className="flex gap-2">
+        <div className="flex gap-2">
+          {/* Bulk Create Dialog */}
+          <Dialog open={isBulkDialogOpen} onOpenChange={setIsBulkDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Package size={16} /> Bulk Create
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Bulk Create Vouchers</DialogTitle>
+                <DialogDescription>
+                  Generate multiple vouchers at once with a custom prefix.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleBulkSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prefix">Prefix (Optional)</Label>
                   <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    placeholder="XXXX-XXXX"
-                    required
+                    id="prefix"
+                    value={bulkFormData.prefix}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, prefix: e.target.value.toUpperCase() })}
+                    placeholder="e.g. PROMO, GIFT"
                     className="font-mono"
                   />
-                  <Button type="button" variant="outline" onClick={generateCode}>
-                    Generate
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Example: PROMO-ABC123, GIFT-XYZ789
+                  </p>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="credits">Credits Amount</Label>
-                <Input
-                  id="credits"
-                  type="number"
-                  min="1"
-                  value={formData.credits}
-                  onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Expiration Date (Optional)</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.expiresAt && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.expiresAt ? format(formData.expiresAt, "PPP") : <span>No expiration</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formData.expiresAt}
-                      onSelect={(date) => setFormData({ ...formData, expiresAt: date })}
-                      disabled={(date) => date < new Date()}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-                {formData.expiresAt && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground"
-                    onClick={() => setFormData({ ...formData, expiresAt: undefined })}
-                  >
-                    Clear expiration date
+                <div className="space-y-2">
+                  <Label htmlFor="count">Number of Vouchers</Label>
+                  <Input
+                    id="count"
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={bulkFormData.count}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, count: parseInt(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulkCredits">Credits Amount (each)</Label>
+                  <Input
+                    id="bulkCredits"
+                    type="number"
+                    min="1"
+                    value={bulkFormData.credits}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, credits: parseInt(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Expiration Date (Optional)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !bulkFormData.expiresAt && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {bulkFormData.expiresAt ? format(bulkFormData.expiresAt, "PPP") : <span>No expiration</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={bulkFormData.expiresAt}
+                        onSelect={(date) => setBulkFormData({ ...bulkFormData, expiresAt: date })}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsBulkDialogOpen(false)}>
+                    Cancel
                   </Button>
-                )}
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
-                  Create
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                  <Button type="submit" disabled={bulkCreateMutation.isPending}>
+                    {bulkCreateMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+                    Create {bulkFormData.count} Vouchers
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Single Create Dialog */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus size={16} /> Create Voucher
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Voucher</DialogTitle>
+                <DialogDescription>
+                  Create a new voucher code for users to redeem credits.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code">Voucher Code</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="code"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                      placeholder="XXXX-XXXX"
+                      required
+                      className="font-mono"
+                    />
+                    <Button type="button" variant="outline" onClick={generateCode}>
+                      Generate
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="credits">Credits Amount</Label>
+                  <Input
+                    id="credits"
+                    type="number"
+                    min="1"
+                    value={formData.credits}
+                    onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Expiration Date (Optional)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formData.expiresAt && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.expiresAt ? format(formData.expiresAt, "PPP") : <span>No expiration</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.expiresAt}
+                        onSelect={(date) => setFormData({ ...formData, expiresAt: date })}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {formData.expiresAt && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => setFormData({ ...formData, expiresAt: undefined })}
+                    >
+                      Clear expiration date
+                    </Button>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+                    Create
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search voucher code..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="redeemed">Redeemed</SelectItem>
+            <SelectItem value="expired">Expired</SelectItem>
+            <SelectItem value="blocked">Blocked</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
@@ -1112,7 +1303,7 @@ const VouchersManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vouchers?.map((voucher) => {
+              {filteredVouchers.map((voucher) => {
                 const displayStatus = getDisplayStatus(voucher);
                 return (
                   <TableRow key={voucher.id}>
@@ -1161,26 +1352,40 @@ const VouchersManagement: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        disabled={displayStatus === 'redeemed'}
-                        onClick={() => {
-                          setVoucherToDelete({ id: voucher.id, code: voucher.code });
-                          setDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Block/Unblock button - only for active or blocked vouchers */}
+                        {(voucher.status === 'active' || voucher.status === 'blocked') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={voucher.status === 'blocked' ? 'text-success hover:text-success' : 'text-warning hover:text-warning'}
+                            onClick={() => toggleBlockMutation.mutate({ id: voucher.id, currentStatus: voucher.status })}
+                            disabled={toggleBlockMutation.isPending}
+                          >
+                            {voucher.status === 'blocked' ? <Check size={16} /> : <Ban size={16} />}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          disabled={displayStatus === 'redeemed'}
+                          onClick={() => {
+                            setVoucherToDelete({ id: voucher.id, code: voucher.code });
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
-              {(!vouchers || vouchers.length === 0) && (
+              {filteredVouchers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No vouchers found. Create one to get started.
+                    {vouchers?.length === 0 ? 'No vouchers found. Create one to get started.' : 'No vouchers match your search criteria.'}
                   </TableCell>
                 </TableRow>
               )}
