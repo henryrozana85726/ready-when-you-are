@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Clock, Coins, AlertCircle, Loader2, Image, Copy, RotateCcw } from 'lucide-react';
+import { Download, Clock, Coins, AlertCircle, Loader2, Image, Copy, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,6 +16,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+
+const ITEMS_PER_PAGE = 24;
 
 interface ImageGeneration {
   id: string;
@@ -38,15 +40,32 @@ interface ImageHistoryProps {
 
 const ImageHistory: React.FC<ImageHistoryProps> = ({ onUsePrompt }) => {
   const [selectedImage, setSelectedImage] = useState<ImageGeneration | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+
+  // First, get total count
+  const { data: totalCount } = useQuery({
+    queryKey: ['image-history-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('image_generations')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
 
   const { data: history, isLoading, error } = useQuery({
-    queryKey: ['image-history'],
+    queryKey: ['image-history', currentPage],
     queryFn: async () => {
+      const from = currentPage * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
       const { data, error } = await supabase
         .from('image_generations')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(24);
+        .range(from, to);
 
       if (error) throw error;
       return data as ImageGeneration[];
@@ -56,6 +75,8 @@ const ImageHistory: React.FC<ImageHistoryProps> = ({ onUsePrompt }) => {
       return data?.some((x) => x.status === 'pending') ? 5000 : false;
     },
   });
+
+  const totalPages = Math.ceil((totalCount || 0) / ITEMS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -113,10 +134,37 @@ const ImageHistory: React.FC<ImageHistoryProps> = ({ onUsePrompt }) => {
 
   return (
     <div className="flex flex-col h-full">
-      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
-        <Clock size={18} />
-        History ({history.length})
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <Clock size={18} />
+          History ({totalCount || 0})
+        </h3>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="text-sm text-muted-foreground min-w-[60px] text-center">
+              {currentPage + 1} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        )}
+      </div>
       <ScrollArea className="flex-1">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pr-4">
           {history.map((item) => (
