@@ -264,30 +264,8 @@ const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video, onUsePro
           </span>
         </DialogTitle>
         <DialogDescription className="text-left space-y-2">
-          <div className="bg-muted/50 rounded-lg p-3 relative group">
-            <p className="pr-16">{video.prompt}</p>
-            <div className="absolute top-2 right-2 flex gap-1">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={handleCopyPrompt}
-                title="Salin prompt"
-              >
-                <Copy size={14} />
-              </Button>
-              {showUsePrompt && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={onUsePrompt}
-                  title="Gunakan prompt ini"
-                >
-                  <RotateCcw size={14} />
-                </Button>
-              )}
-            </div>
+          <div className="bg-muted/50 rounded-lg p-3">
+            <p>{video.prompt}</p>
           </div>
           {video.negative_prompt && (
             <div className="text-xs text-muted-foreground">
