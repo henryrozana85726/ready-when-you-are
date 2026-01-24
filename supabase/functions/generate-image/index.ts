@@ -293,21 +293,29 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
 
     const submitData = await submitResponse.json();
     const requestId = submitData.request_id;
+    // Use the status_url and response_url from submit response (recommended by fal.ai)
+    const statusUrl = submitData.status_url;
+    const responseUrl = submitData.response_url;
+
+    console.log("Fal.ai submit response:", { requestId, statusUrl, responseUrl });
 
     if (!requestId) {
       console.error("No request_id in response:", submitData);
       return { error: "No request ID returned" };
     }
 
-    // Poll for result
-    const statusEndpoint = `https://queue.fal.run/${modelName}/requests/${requestId}/status`;
+    // Poll for result using the status_url provided by fal.ai
     let attempts = 0;
     const maxAttempts = 60;
 
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const statusResponse = await fetch(statusEndpoint, {
+      // Use the status_url from submit response, or construct fallback
+      const pollUrl = statusUrl || `https://queue.fal.run/${modelName}/requests/${requestId}/status`;
+      
+      const statusResponse = await fetch(pollUrl, {
+        method: "GET",
         headers: { "Authorization": `Key ${apiKey}` },
       });
 
@@ -321,13 +329,21 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
       console.log("Fal.ai status:", statusData.status);
 
       if (statusData.status === "COMPLETED") {
-        // Get result
-        const resultEndpoint = `https://queue.fal.run/${modelName}/requests/${requestId}`;
-        const resultResponse = await fetch(resultEndpoint, {
+        // Response might already be included in status response
+        if (statusData.response) {
+          const imageUrl = statusData.response.images?.[0]?.url || statusData.response.image?.url;
+          if (imageUrl) return { imageUrl };
+        }
+        
+        // Otherwise fetch from response_url
+        const resultUrl = responseUrl || `https://queue.fal.run/${modelName}/requests/${requestId}`;
+        const resultResponse = await fetch(resultUrl, {
+          method: "GET",
           headers: { "Authorization": `Key ${apiKey}` },
         });
 
         if (!resultResponse.ok) {
+          console.error("Result fetch failed:", resultResponse.status);
           return { error: "Failed to get result" };
         }
 
