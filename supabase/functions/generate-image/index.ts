@@ -328,9 +328,11 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
 
     const submitData = await submitResponse.json();
     const requestId = submitData.request_id;
-    // Use the status_url and response_url from submit response (recommended by fal.ai)
-    const statusUrl = submitData.status_url;
-    const responseUrl = submitData.response_url;
+    
+    // Construct URLs manually using the actual model name since fal.ai's returned URLs 
+    // can be truncated for models with complex paths
+    const statusUrl = `https://queue.fal.run/${actualModelName}/requests/${requestId}/status`;
+    const responseUrl = `https://queue.fal.run/${actualModelName}/requests/${requestId}`;
 
     console.log("Fal.ai submit response:", { requestId, statusUrl, responseUrl });
 
@@ -346,8 +348,8 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Use the status_url from submit response, or construct fallback
-      const pollUrl = statusUrl || `https://queue.fal.run/${modelName}/requests/${requestId}/status`;
+      // Use the constructed URLs with actual model name
+      const pollUrl = statusUrl;
       
       const statusResponse = await fetch(pollUrl, {
         method: "GET",
