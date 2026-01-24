@@ -145,14 +145,42 @@ const VideoGen: React.FC = () => {
     }
   }, [selectedModel, generationType]);
 
+  // Get available aspect ratios based on generation type
+  const availableAspectRatios = useMemo(() => {
+    if (!selectedModel || selectedModel.aspectRatios.length === 0) return [];
+    
+    // Check if we should add 'auto' for image modes
+    if (selectedModel.aspectRatioConditions?.addAutoForImageModes && 
+        (generationType === 'image-to-video' || generationType === 'first-last-frame')) {
+      return ['auto', ...selectedModel.aspectRatios];
+    }
+    
+    return selectedModel.aspectRatios;
+  }, [selectedModel, generationType]);
+
   // Check if aspect ratio should be shown
   const showAspectRatio = useMemo(() => {
-    if (!selectedModel || selectedModel.aspectRatios.length === 0) return false;
+    if (!selectedModel || availableAspectRatios.length === 0) return false;
     if (selectedModel.aspectRatioConditions?.textToVideoOnly && generationType !== 'text-to-video') return false;
     if (selectedModel.aspectRatioConditions?.hideWhenImageToVideoStandard && 
         generationType === 'image-to-video' && mode === 'standard') return false;
     return true;
-  }, [selectedModel, generationType, mode]);
+  }, [selectedModel, availableAspectRatios, generationType, mode]);
+
+  // Update aspect ratio when generation type changes for models with addAutoForImageModes
+  React.useEffect(() => {
+    if (!selectedModel?.aspectRatioConditions?.addAutoForImageModes) return;
+    
+    if (generationType === 'text-to-video') {
+      // Switch to default (16:9) when switching to text-to-video
+      if (aspectRatio === 'auto') {
+        setAspectRatio(selectedModel.defaultAspectRatio);
+      }
+    } else {
+      // Switch to 'auto' when switching to image modes
+      setAspectRatio('auto');
+    }
+  }, [generationType, selectedModel]);
 
   return (
     <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
@@ -270,21 +298,16 @@ const VideoGen: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 {/* Aspect Ratio */}
                 {showAspectRatio && (
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-lg text-sm font-medium border bg-muted border-border text-muted-foreground text-left"
-                  >
-                    <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                      <SelectTrigger className="border-0 bg-transparent p-0 h-auto">
-                        <SelectValue placeholder="Aspect Ratio" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedModel.aspectRatios.map((ar) => (
-                          <SelectItem key={ar} value={ar}>{ar}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </button>
+                  <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Aspect Ratio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAspectRatios.map((ar) => (
+                        <SelectItem key={ar} value={ar} className="capitalize">{ar === 'auto' ? 'Auto' : ar}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
 
                 {/* Duration */}

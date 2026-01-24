@@ -37,6 +37,7 @@ export interface ModelConfig {
   aspectRatioConditions?: {
     textToVideoOnly?: boolean;
     hideWhenImageToVideoStandard?: boolean;
+    addAutoForImageModes?: boolean;
   };
   modeConditions?: {
     textToVideo?: string[];
@@ -82,15 +83,22 @@ export const server1Models: ModelWithPricing[] = [
     supportsAudio: true,
     supportsNegativePrompt: false,
     maxImages: 2,
-    aspectRatios: ['auto', '16:9', '9:16'],
+    aspectRatios: ['16:9', '9:16'],
     durations: [4, 6, 8],
     resolutions: ['720p', '1080p'],
     modes: ['standard'],
-    defaultAspectRatio: 'auto',
+    defaultAspectRatio: '16:9',
     defaultDuration: 8,
     defaultResolution: '1080p',
     defaultMode: 'standard',
-    apiDocs: {},
+    // For image-to-video and first-last-frame, add 'auto' option
+    aspectRatioConditions: {
+      addAutoForImageModes: true,
+    },
+    apiDocs: {
+      textToVideo: 'https://fal.ai/models/fal-ai/veo3.1/fast/api',
+      imageToVideo: 'https://fal.ai/models/fal-ai/veo3.1/fast/image-to-video/api',
+    },
     pricing: [
       { duration: 4, audioOn: false, price: 0.4 },
       { duration: 6, audioOn: false, price: 0.6 },
