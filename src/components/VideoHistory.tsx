@@ -19,6 +19,7 @@ interface VideoGeneration {
   aspect_ratio: string | null;
   audio_enabled: boolean | null;
   mode: string | null;
+  model_name: string | null;
   error_message: string | null;
   created_at: string;
 }
@@ -126,6 +127,7 @@ const HistoryItem: React.FC<{ item: VideoGeneration }> = ({ item }) => {
       {/* Meta */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{format(new Date(item.created_at), 'dd MMM yyyy HH:mm', { locale: idLocale })}</span>
+        {item.model_name && <span>• {item.model_name}</span>}
         {item.duration_seconds && <span>• {item.duration_seconds}s</span>}
         {item.resolution && <span>• {item.resolution}</span>}
         {item.aspect_ratio && <span>• {item.aspect_ratio}</span>}
