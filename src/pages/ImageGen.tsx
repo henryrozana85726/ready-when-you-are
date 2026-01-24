@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sparkles, Loader2, Upload, X, Coins, Info, Download, RefreshCcw } from 'lucide-react';
+import { Sparkles, Loader2, Upload, X, Coins, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GenerationStatus } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -37,9 +36,7 @@ const ImageGen: React.FC = () => {
   const [resolution, setResolution] = useState('');
   const [outputFormat, setOutputFormat] = useState('');
   const [images, setImages] = useState<File[]>([]);
-  const [status, setStatus] = useState<GenerationStatus>(GenerationStatus.IDLE);
-  const [resultImage, setResultImage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Get models for selected server
   const models = useMemo(() => getImageModelsByServer(server), [server]);
@@ -174,13 +171,14 @@ const ImageGen: React.FC = () => {
       return;
     }
 
-    setStatus(GenerationStatus.LOADING);
-    setError(null);
-    setResultImage(null);
+    setIsGenerating(true);
 
     try {
       // Convert images to base64
       const imageBase64s = await Promise.all(images.map(fileToBase64));
+
+      // Immediately invalidate history to show pending thumbnail
+      queryClient.invalidateQueries({ queryKey: ['image-history'] });
 
       const { data, error: fnError } = await supabase.functions.invoke('generate-image', {
         body: {
@@ -205,10 +203,7 @@ const ImageGen: React.FC = () => {
       }
 
       if (data?.imageUrl) {
-        setResultImage(data.imageUrl);
-        setStatus(GenerationStatus.SUCCESS);
-        
-        // Refresh user credits and history after successful generation
+        // Refresh history and credits
         await refreshCredits();
         queryClient.invalidateQueries({ queryKey: ['image-history'] });
         
@@ -221,13 +216,15 @@ const ImageGen: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Image generation error:', err);
-      setError(err.message || 'Failed to generate image');
-      setStatus(GenerationStatus.ERROR);
+      // Refresh history to show the failed item
+      queryClient.invalidateQueries({ queryKey: ['image-history'] });
       toast({
         title: 'Gagal membuat gambar',
         description: err.message || 'Terjadi kesalahan',
         variant: 'destructive',
       });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -397,11 +394,11 @@ const ImageGen: React.FC = () => {
 
           <Button
             type="submit"
-            disabled={status === GenerationStatus.LOADING || !prompt.trim() || !selectedModel}
+            disabled={isGenerating || !prompt.trim() || !selectedModel}
             size="lg"
             className="mt-auto w-full gap-2 gradient-brand text-primary-foreground hover:opacity-90"
           >
-            {status === GenerationStatus.LOADING ? (
+            {isGenerating ? (
               <>
                 <Loader2 className="animate-spin" /> Generating...
               </>
@@ -416,55 +413,8 @@ const ImageGen: React.FC = () => {
 
       {/* Preview Area */}
       <div className="bg-muted rounded-xl border border-border p-4 flex flex-col relative overflow-hidden min-h-[400px]">
-        {status === GenerationStatus.IDLE && (
-          <ImageHistory onUsePrompt={(p) => setPrompt(p)} />
-        )}
-
-        {status === GenerationStatus.LOADING && (
-          <div className="flex flex-col items-center gap-4 text-primary">
-            <Loader2 size={48} className="animate-spin" />
-            <p className="text-sm font-medium animate-pulse">Membuat gambar...</p>
-          </div>
-        )}
-
-        {status === GenerationStatus.ERROR && (
-          <div className="text-destructive text-center px-6">
-            <p className="mb-2">Terjadi kesalahan.</p>
-            <p className="text-sm opacity-80">{error}</p>
-            <button
-              onClick={() => setStatus(GenerationStatus.IDLE)}
-              className="mt-4 text-sm underline hover:text-foreground"
-            >
-              Coba Lagi
-            </button>
-          </div>
-        )}
-
-        {status === GenerationStatus.SUCCESS && resultImage && (
-          <div className="relative w-full h-full flex items-center justify-center flex-1 group">
-            <img
-              src={resultImage}
-              alt={prompt}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            />
-            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <a
-                href={resultImage}
-                download={`generated-${Date.now()}.${outputFormat || 'png'}`}
-                className="p-2 bg-background/80 hover:bg-background text-foreground rounded-lg backdrop-blur-sm transition-colors border border-border"
-              >
-                <Download size={20} />
-              </a>
-              <button
-                onClick={() => setStatus(GenerationStatus.IDLE)}
-                className="p-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg backdrop-blur-sm transition-colors"
-                title="View History"
-              >
-                <RefreshCcw size={20} />
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Always show history - pending items will show as thumbnails */}
+        <ImageHistory onUsePrompt={(p) => setPrompt(p)} />
       </div>
     </div>
   );
