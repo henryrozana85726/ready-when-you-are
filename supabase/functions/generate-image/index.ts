@@ -465,8 +465,13 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
     }
 
     // Add images for image-to-image
-    if (isImageToImage) {
+    // Note: Gemini 3 Pro Image model doesn't support image-to-image with base64 directly
+    // Only Seedream 4 model supports image-to-image on GMI Cloud
+    if (isImageToImage && modelName === 'seedream-4-0-250828') {
       payload.image = images;
+    } else if (isImageToImage) {
+      console.log("Image-to-image not supported for model:", modelName);
+      return { error: `Image-to-image is not supported for ${modelName} on GMI Cloud. Please use text-to-image mode or select Seedream 4 model.` };
     }
 
     const requestBody = {
