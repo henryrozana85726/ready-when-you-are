@@ -394,14 +394,48 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_redemptions: {
+        Row: {
+          credits_received: number
+          id: string
+          redeemed_at: string
+          user_id: string
+          voucher_id: string
+        }
+        Insert: {
+          credits_received: number
+          id?: string
+          redeemed_at?: string
+          user_id: string
+          voucher_id: string
+        }
+        Update: {
+          credits_received?: number
+          id?: string
+          redeemed_at?: string
+          user_id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_redemptions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vouchers: {
         Row: {
           code: string
           created_at: string
           created_by: string | null
           credits: number
+          current_redemptions: number
           expires_at: string | null
           id: string
+          max_redemptions: number
           redeemed_at: string | null
           redeemed_by: string | null
           status: string
@@ -411,8 +445,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credits?: number
+          current_redemptions?: number
           expires_at?: string | null
           id?: string
+          max_redemptions?: number
           redeemed_at?: string | null
           redeemed_by?: string | null
           status?: string
@@ -422,8 +458,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credits?: number
+          current_redemptions?: number
           expires_at?: string | null
           id?: string
+          max_redemptions?: number
           redeemed_at?: string | null
           redeemed_by?: string | null
           status?: string
