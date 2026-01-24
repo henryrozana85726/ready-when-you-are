@@ -25,7 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 type GenerationType = 'text-to-video' | 'image-to-video' | 'first-last-frame';
 
 const VideoGen: React.FC = () => {
-  const { credits } = useAuth();
+  const { credits, refreshCredits } = useAuth();
   const { toast } = useToast();
   
   // State
@@ -151,6 +151,7 @@ const VideoGen: React.FC = () => {
           images: imageBase64s,
           modelId: selectedModel.id,
           server,
+          creditsToUse: currentPrice,
         },
       });
 
@@ -164,9 +165,13 @@ const VideoGen: React.FC = () => {
 
       setGeneratedVideoUrl(data.videoUrl);
       setStatus(GenerationStatus.SUCCESS);
+      
+      // Refresh user credits after successful generation
+      await refreshCredits();
+      
       toast({
         title: 'Video berhasil dibuat!',
-        description: 'Video Anda sudah siap untuk diunduh.',
+        description: `Video Anda sudah siap. ${data.creditsUsed || currentPrice} kredit telah digunakan.`,
       });
     } catch (error) {
       console.error('Video generation error:', error);
