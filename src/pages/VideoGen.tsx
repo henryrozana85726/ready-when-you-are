@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Play, Loader2, Upload, X, DollarSign, Info } from 'lucide-react';
+import { Play, Loader2, Upload, X, Coins, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -111,7 +111,7 @@ const VideoGen: React.FC = () => {
     if (credits < currentPrice) {
       toast({
         title: 'Kredit tidak cukup',
-        description: `Anda membutuhkan $${currentPrice.toFixed(2)} tapi hanya memiliki $${credits.toFixed(2)}`,
+        description: `Anda membutuhkan ${currentPrice.toLocaleString()} kredit tapi hanya memiliki ${credits.toLocaleString()} kredit`,
         variant: 'destructive',
       });
       return;
@@ -165,9 +165,9 @@ const VideoGen: React.FC = () => {
 
         {/* Credits Badge */}
         <div className="flex items-center gap-2 px-4 py-2 bg-muted border border-border rounded-lg w-fit">
-          <DollarSign size={16} className="text-primary" />
+          <Coins size={16} className="text-primary" />
           <span className="text-sm text-muted-foreground">Credits:</span>
-          <span className="font-bold text-foreground">${credits.toFixed(2)}</span>
+          <span className="font-bold text-foreground">{credits.toLocaleString()}</span>
         </div>
 
         {/* Server Tabs */}
@@ -351,7 +351,7 @@ const VideoGen: React.FC = () => {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Info size={14} />
               <span>Estimated cost:</span>
-              <span className="font-bold text-primary">${currentPrice.toFixed(2)}</span>
+              <span className="font-bold text-primary">{currentPrice.toLocaleString()} kredit</span>
             </div>
           )}
 

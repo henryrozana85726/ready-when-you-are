@@ -4,7 +4,7 @@ import {
   Users,
   Key,
   Film,
-  DollarSign,
+  Coins,
   LayoutDashboard,
   Plus,
   Trash2,
@@ -87,7 +87,7 @@ const AdminDashboard: React.FC = () => {
   const statCards = [
     { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users },
     { label: 'API Keys', value: `${stats?.activeApiKeys}/${stats?.totalApiKeys}`, icon: Key },
-    { label: 'Total API Credits', value: `$${stats?.totalApiCredits?.toFixed(2) || '0.00'}`, icon: DollarSign },
+    { label: 'Total API Credits', value: stats?.totalApiCredits?.toLocaleString() || '0', icon: Coins },
     { label: 'Video Models', value: stats?.totalModels || 0, icon: Film },
   ];
 
@@ -276,7 +276,7 @@ const ApiKeysManagement: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="credits">Credits ($)</Label>
+                <Label htmlFor="credits">Credits</Label>
                 <Input
                   id="credits"
                   type="number"
@@ -334,7 +334,7 @@ const ApiKeysManagement: React.FC = () => {
                       {key.provider === 'fal_ai' ? 'fal.ai' : 'GMI Cloud'}
                     </span>
                   </TableCell>
-                  <TableCell>${Number(key.credits).toFixed(2)}</TableCell>
+                  <TableCell>{Number(key.credits).toLocaleString()}</TableCell>
                   <TableCell>
                     <button
                       onClick={() =>
