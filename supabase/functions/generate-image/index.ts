@@ -285,17 +285,31 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
     // Build request body based on model
     const requestBody: any = {
       prompt,
-      aspect_ratio: aspectRatio === 'auto' ? undefined : aspectRatio,
     };
 
-    // Add resolution/image_size
-    if (resolution) {
-      const resolutionMap: Record<string, string> = {
-        '1K': '1024x1024',
-        '2K': '2048x2048',
-        '4K': '4096x4096',
-      };
-      requestBody.image_size = resolutionMap[resolution] || resolution;
+    // Seedream 4.5 uses image_size for aspect ratio (square_hd, portrait_4_3, etc.)
+    const isSeedream = actualModelName.includes('bytedance/seedream');
+    
+    if (isSeedream) {
+      // Seedream uses image_size field for aspect ratio values
+      if (aspectRatio && aspectRatio !== 'auto') {
+        requestBody.image_size = aspectRatio;
+      }
+    } else {
+      // Other models use aspect_ratio
+      if (aspectRatio && aspectRatio !== 'auto') {
+        requestBody.aspect_ratio = aspectRatio;
+      }
+      
+      // Add resolution/image_size for non-Seedream models
+      if (resolution) {
+        const resolutionMap: Record<string, string> = {
+          '1K': '1024x1024',
+          '2K': '2048x2048',
+          '4K': '4096x4096',
+        };
+        requestBody.image_size = resolutionMap[resolution] || resolution;
+      }
     }
 
     // Add output format
@@ -329,10 +343,9 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
     const submitData = await submitResponse.json();
     const requestId = submitData.request_id;
     
-    // Construct URLs manually using the actual model name since fal.ai's returned URLs 
-    // can be truncated for models with complex paths
-    const statusUrl = `https://queue.fal.run/${actualModelName}/requests/${requestId}/status`;
-    const responseUrl = `https://queue.fal.run/${actualModelName}/requests/${requestId}`;
+    // Use URLs from fal.ai response if available, otherwise construct manually
+    const statusUrl = submitData.status_url || `https://queue.fal.run/${actualModelName}/requests/${requestId}/status`;
+    const responseUrl = submitData.response_url || `https://queue.fal.run/${actualModelName}/requests/${requestId}`;
 
     console.log("Fal.ai submit response:", { requestId, statusUrl, responseUrl });
 
