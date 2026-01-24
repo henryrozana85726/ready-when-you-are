@@ -46,6 +46,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -410,6 +420,8 @@ const ApiKeysManagement: React.FC = () => {
 // Users Management
 const UsersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -701,9 +713,8 @@ const UsersManagement: React.FC = () => {
                       size="icon"
                       className="text-destructive hover:text-destructive"
                       onClick={() => {
-                        if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-                          deleteUserMutation.mutate(user.user_id);
-                        }
+                        setUserToDelete({ id: user.user_id, email: user.email || 'Unknown' });
+                        setDeleteDialogOpen(true);
                       }}
                       disabled={deleteUserMutation.isPending}
                     >
@@ -727,6 +738,35 @@ const UsersManagement: React.FC = () => {
           </Table>
         </div>
       )}
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-semibold text-foreground">{userToDelete?.email}</span>? 
+              This action cannot be undone and will permanently remove the user account along with all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (userToDelete) {
+                  deleteUserMutation.mutate(userToDelete.id);
+                  setDeleteDialogOpen(false);
+                  setUserToDelete(null);
+                }
+              }}
+            >
+              {deleteUserMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
