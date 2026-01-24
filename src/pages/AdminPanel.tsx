@@ -541,7 +541,7 @@ const ModelsManagement: React.FC = () => {
 // Vouchers Management
 const VouchersManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ code: '', credits: 100 });
+  const [formData, setFormData] = useState({ code: '', credits: 5 });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -566,7 +566,7 @@ const VouchersManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: 'Voucher created successfully' });
       setIsDialogOpen(false);
-      setFormData({ code: '', credits: 100 });
+      setFormData({ code: '', credits: 5 });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
