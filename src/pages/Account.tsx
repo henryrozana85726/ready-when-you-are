@@ -67,6 +67,21 @@ const Account: React.FC = () => {
         .eq('status', 'active')
         .single();
 
+      // Check if voucher is expired
+      if (voucher && voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
+        // Log failed attempt
+        await supabase
+          .from('voucher_redemption_attempts')
+          .insert({ user_id: user.id, attempted_code: voucherCode.toUpperCase() });
+
+        toast({
+          title: 'Voucher sudah kadaluarsa',
+          description: 'Kode voucher ini sudah melewati tanggal kadaluarsa.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (voucherError || !voucher) {
         // Log failed attempt
         await supabase
