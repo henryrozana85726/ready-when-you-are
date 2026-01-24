@@ -528,8 +528,10 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
       console.log("GMI Cloud status:", status);
 
       if (status === 'completed' || status === 'succeeded' || status === 'success') {
-        // Extract image URL from response
-        const imageUrl = statusData.result?.images?.[0]?.url ||
+        // Extract image URL from response - GMI Cloud uses 'outcome.media_urls' structure
+        const imageUrl = statusData.outcome?.media_urls?.[0]?.url ||
+                        statusData.outcome?.thumbnail_image_url ||
+                        statusData.result?.images?.[0]?.url ||
                         statusData.result?.image_url ||
                         statusData.output?.images?.[0]?.url ||
                         statusData.output?.url ||
@@ -537,17 +539,19 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
                         statusData.url;
 
         if (imageUrl) {
+          console.log("Image URL extracted:", imageUrl.substring(0, 100));
           return { imageUrl };
         }
 
         // Check for base64
-        const b64 = statusData.result?.images?.[0]?.b64_json ||
+        const b64 = statusData.outcome?.images?.[0]?.b64_json ||
+                   statusData.result?.images?.[0]?.b64_json ||
                    statusData.output?.images?.[0]?.b64_json;
         if (b64) {
           return { imageUrl: `data:image/${outputFormat || 'png'};base64,${b64}` };
         }
 
-        console.error("Completed but no image URL found:", statusData);
+        console.error("Completed but no image URL found:", JSON.stringify(statusData, null, 2));
         return { error: "Completed but no image URL in response" };
       }
 
