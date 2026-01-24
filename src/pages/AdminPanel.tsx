@@ -14,6 +14,8 @@ import {
   X,
   ToggleLeft,
   ToggleRight,
+  Ticket,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -532,7 +534,199 @@ const ModelsManagement: React.FC = () => {
       <p className="text-muted-foreground">
         Models will be seeded from the initial data. You can enable/disable models and adjust pricing here.
       </p>
-      {/* Full implementation would include model listing and editing */}
+    </div>
+  );
+};
+
+// Vouchers Management
+const VouchersManagement: React.FC = () => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({ code: '', credits: 100 });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: vouchers, isLoading } = useQuery({
+    queryKey: ['vouchers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vouchers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { code: string; credits: number }) => {
+      const { error } = await supabase.from('vouchers').insert([data]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      toast({ title: 'Voucher created successfully' });
+      setIsDialogOpen(false);
+      setFormData({ code: '', credits: 100 });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('vouchers').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      toast({ title: 'Voucher deleted' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const generateCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormData({ ...formData, code });
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: 'Code copied to clipboard' });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.code.trim()) return;
+    createMutation.mutate(formData);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground">Vouchers</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus size={16} /> Create Voucher
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Voucher</DialogTitle>
+              <DialogDescription>
+                Create a new voucher code for users to redeem credits.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="code">Voucher Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="code"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    placeholder="XXXX-XXXX"
+                    required
+                    className="font-mono"
+                  />
+                  <Button type="button" variant="outline" onClick={generateCode}>
+                    Generate
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="credits">Credits Amount</Label>
+                <Input
+                  id="credits"
+                  type="number"
+                  min="1"
+                  value={formData.credits}
+                  onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending && <Loader2 className="animate-spin mr-2" size={16} />}
+                  Create
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Credits</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vouchers?.map((voucher) => (
+                <TableRow key={voucher.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <code className="font-mono bg-muted px-2 py-1 rounded">{voucher.code}</code>
+                      <button
+                        onClick={() => copyCode(voucher.code)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Coins size={14} className="text-primary" />
+                      <span>{voucher.credits.toLocaleString()}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {new Date(voucher.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteMutation.mutate(voucher.id)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!vouchers || vouchers.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    No vouchers found. Create one to get started.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 };
@@ -543,6 +737,7 @@ const AdminPanel: React.FC = () => {
     { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
     { label: 'API Keys', path: '/admin/api-keys', icon: Key },
     { label: 'Users', path: '/admin/users', icon: Users },
+    { label: 'Vouchers', path: '/admin/vouchers', icon: Ticket },
     { label: 'Models', path: '/admin/models', icon: Film },
   ];
 
@@ -550,7 +745,7 @@ const AdminPanel: React.FC = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Panel</h1>
-        <p className="text-muted-foreground">Manage API keys, users, models, and pricing.</p>
+        <p className="text-muted-foreground">Manage API keys, users, vouchers, and models.</p>
       </div>
 
       {/* Sub navigation */}
@@ -580,6 +775,7 @@ const AdminPanel: React.FC = () => {
         <Route path="/" element={<AdminDashboard />} />
         <Route path="/api-keys" element={<ApiKeysManagement />} />
         <Route path="/users" element={<UsersManagement />} />
+        <Route path="/vouchers" element={<VouchersManagement />} />
         <Route path="/models" element={<ModelsManagement />} />
       </Routes>
     </div>
