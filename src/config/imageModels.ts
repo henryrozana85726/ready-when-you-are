@@ -141,11 +141,11 @@ export const server1Models: ImageModelWithPricing[] = [
     supportsImageToImage: true,
     maxImages: 20,
     
-    aspectRatios: ['1:1', '3:4', '9:16', '4:3', '16:9', 'Auto 2K', 'Auto 4K'],
+    aspectRatios: ['square_hd', 'square', 'portrait_4_3', 'portrait_16_9', 'landscape_4_3', 'landscape_16_9', 'auto_2K', 'auto_4K'],
     resolutions: [],
     outputFormats: [],
     
-    defaultAspectRatio: '1:1',
+    defaultAspectRatio: 'square_hd',
     defaultResolution: '',
     defaultOutputFormat: '',
     
