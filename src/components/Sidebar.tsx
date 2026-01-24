@@ -1,7 +1,22 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Image as ImageIcon, Video, MessageSquare, User, X, Sun, Moon } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Image as ImageIcon,
+  Video,
+  MessageSquare,
+  User,
+  X,
+  Sun,
+  Moon,
+  Settings,
+  LogOut,
+  LogIn,
+  Coins,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,15 +25,32 @@ interface SidebarProps {
   toggleTheme: () => void;
 }
 
-const navItems = [
-  { label: 'Home', path: '/', icon: LayoutDashboard },
-  { label: 'Image Generation', path: '/image', icon: ImageIcon },
-  { label: 'Video Generation', path: '/video', icon: Video },
-  { label: 'AI Assistant', path: '/tools', icon: MessageSquare },
-  { label: 'Account', path: '/account', icon: User },
-];
-
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme }) => {
+  const { user, role, credits, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const navItems = [
+    { label: 'Home', path: '/', icon: LayoutDashboard },
+    { label: 'Image Generation', path: '/image', icon: ImageIcon, requireAuth: true },
+    { label: 'Video Generation', path: '/video', icon: Video, requireAuth: true },
+    { label: 'AI Assistant', path: '/tools', icon: MessageSquare, requireAuth: true },
+    { label: 'Account', path: '/account', icon: User, requireAuth: true },
+  ];
+
+  const adminItems = [
+    { label: 'Admin Panel', path: '/admin', icon: Settings },
+  ];
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+    onClose();
+  };
+
+  const filteredNavItems = navItems.filter(
+    (item) => !item.requireAuth || user
+  );
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -32,16 +64,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-300 ease-in-out flex flex-col",
           "lg:translate-x-0 lg:static lg:inset-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
-          <span className="text-xl font-bold gradient-text">
-            BS30 Tools
-          </span>
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border shrink-0">
+          <span className="text-xl font-bold gradient-text">BS30 Tools</span>
           <button
             onClick={onClose}
             className="lg:hidden text-muted-foreground hover:text-foreground transition-colors"
@@ -51,8 +81,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-2">
-          {navItems.map((item) => (
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -72,10 +102,50 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
               <span className="font-medium">{item.label}</span>
             </NavLink>
           ))}
+
+          {/* Admin section */}
+          {role === 'admin' && (
+            <div className="pt-4 border-t border-border mt-4">
+              <p className="px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Admin
+              </p>
+              {adminItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => {
+                    if (window.innerWidth < 1024) onClose();
+                  }}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                      isActive
+                        ? "bg-accent/20 text-accent border border-accent/20"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )
+                  }
+                >
+                  <item.icon size={20} />
+                  <span className="font-medium">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
         </nav>
 
         {/* Footer */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-border space-y-4">
+        <div className="p-4 border-t border-border space-y-3 shrink-0">
+          {/* Credits display */}
+          {user && (
+            <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-muted/50">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Coins size={16} />
+                <span className="text-sm">Credits</span>
+              </div>
+              <span className="font-bold text-foreground">${credits.toFixed(2)}</span>
+            </div>
+          )}
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -87,16 +157,44 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
             </span>
           </button>
 
-          {/* User Profile */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-muted/50">
-            <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center text-xs font-bold text-primary-foreground">
-              BS
+          {/* User Profile / Auth */}
+          {user ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-muted/50">
+                <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center text-xs font-bold text-primary-foreground">
+                  {user.email?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {role} Plan
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={handleSignOut}
+              >
+                <LogOut size={16} />
+                Logout
+              </Button>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium text-foreground truncate">User Account</p>
-              <p className="text-xs text-muted-foreground truncate">Pro Plan</p>
-            </div>
-          </div>
+          ) : (
+            <Button
+              className="w-full gap-2 gradient-brand text-primary-foreground"
+              onClick={() => {
+                navigate('/auth');
+                onClose();
+              }}
+            >
+              <LogIn size={16} />
+              Login / Register
+            </Button>
+          )}
         </div>
       </aside>
     </>
