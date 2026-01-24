@@ -343,18 +343,18 @@ const ApiKeysManagement: React.FC = () => {
                   <TableCell>
                     <span className={cn(
                       'font-medium',
-                      Number(key.credits) < 5 && 'text-destructive'
+                      Number(key.credits) < 0.3 && 'text-destructive'
                     )}>
                       {Number(key.credits).toLocaleString()}
                     </span>
-                    {Number(key.credits) < 5 && (
+                    {Number(key.credits) < 0.3 && (
                       <span className="ml-2 px-2 py-0.5 rounded text-xs bg-destructive/10 text-destructive">
                         Low
                       </span>
                     )}
                   </TableCell>
                   <TableCell>
-                    {Number(key.credits) < 5 ? (
+                    {Number(key.credits) < 0.3 ? (
                       <div className="flex items-center gap-2">
                         <ToggleLeft size={24} className="text-muted-foreground/50" />
                         <span className="text-xs text-destructive">Disabled</span>
