@@ -340,20 +340,39 @@ const ApiKeysManagement: React.FC = () => {
                       {key.provider === 'fal_ai' ? 'fal.ai' : 'GMI Cloud'}
                     </span>
                   </TableCell>
-                  <TableCell>{Number(key.credits).toLocaleString()}</TableCell>
                   <TableCell>
-                    <button
-                      onClick={() =>
-                        toggleActiveMutation.mutate({ id: key.id, is_active: !key.is_active })
-                      }
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      {key.is_active ? (
-                        <ToggleRight size={24} className="text-success" />
-                      ) : (
-                        <ToggleLeft size={24} />
-                      )}
-                    </button>
+                    <span className={cn(
+                      'font-medium',
+                      Number(key.credits) < 5 && 'text-destructive'
+                    )}>
+                      {Number(key.credits).toLocaleString()}
+                    </span>
+                    {Number(key.credits) < 5 && (
+                      <span className="ml-2 px-2 py-0.5 rounded text-xs bg-destructive/10 text-destructive">
+                        Low
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {Number(key.credits) < 5 ? (
+                      <div className="flex items-center gap-2">
+                        <ToggleLeft size={24} className="text-muted-foreground/50" />
+                        <span className="text-xs text-destructive">Disabled</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          toggleActiveMutation.mutate({ id: key.id, is_active: !key.is_active })
+                        }
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {key.is_active ? (
+                          <ToggleRight size={24} className="text-success" />
+                        ) : (
+                          <ToggleLeft size={24} />
+                        )}
+                      </button>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {new Date(key.created_at).toLocaleDateString()}
