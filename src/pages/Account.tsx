@@ -59,35 +59,16 @@ const Account: React.FC = () => {
 
     setIsRedeeming(true);
     try {
-      // Check if voucher exists and is active
-      const { data: voucher, error: voucherError } = await supabase
-        .from('vouchers')
-        .select('*')
-        .eq('code', voucherCode.toUpperCase())
-        .eq('status', 'active')
-        .single();
+      // Call the secure database function to redeem voucher
+      const { data, error } = await supabase.rpc('redeem_voucher', {
+        voucher_code: voucherCode.trim()
+      });
 
-      // Check if voucher is expired
-      if (voucher && voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
-        // Log failed attempt
-        await supabase
-          .from('voucher_redemption_attempts')
-          .insert({ user_id: user.id, attempted_code: voucherCode.toUpperCase() });
+      if (error) throw error;
 
-        toast({
-          title: 'Voucher sudah kadaluarsa',
-          description: 'Kode voucher ini sudah melewati tanggal kadaluarsa.',
-          variant: 'destructive',
-        });
-        return;
-      }
+      const result = data as { success: boolean; error?: string; credits_added?: number; new_balance?: number };
 
-      if (voucherError || !voucher) {
-        // Log failed attempt
-        await supabase
-          .from('voucher_redemption_attempts')
-          .insert({ user_id: user.id, attempted_code: voucherCode.toUpperCase() });
-
+      if (!result.success) {
         // Recheck lock status
         const { data: attempts } = await supabase
           .from('voucher_redemption_attempts')
@@ -105,49 +86,33 @@ const Account: React.FC = () => {
           });
         } else {
           const remainingAttempts = 3 - (attempts?.length || 0);
+          let errorMessage = 'Kode voucher tidak valid.';
+          
+          if (result.error === 'Voucher expired') {
+            errorMessage = 'Kode voucher ini sudah kadaluarsa.';
+          } else if (result.error === 'Voucher not found or not active') {
+            errorMessage = `Kode voucher tidak ditemukan atau sudah digunakan. Sisa percobaan: ${remainingAttempts}`;
+          } else if (result.error === 'Account locked due to too many failed attempts') {
+            setIsLocked(true);
+            setLockMinutesRemaining(60);
+            errorMessage = 'Akun Anda dikunci karena terlalu banyak percobaan gagal.';
+          }
+          
           toast({
             title: 'Voucher tidak valid',
-            description: `Kode voucher tidak ditemukan atau sudah digunakan. Sisa percobaan: ${remainingAttempts}`,
+            description: errorMessage,
             variant: 'destructive',
           });
         }
         return;
       }
 
-      // Add credits to user
-      const { data: currentCredits } = await supabase
-        .from('user_credits')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
-
-      const newBalance = (Number(currentCredits?.balance) || 0) + voucher.credits;
-
-      const { error: updateError } = await supabase
-        .from('user_credits')
-        .update({ balance: newBalance })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      // Update voucher status to redeemed (instead of deleting)
-      const { error: redeemError } = await supabase
-        .from('vouchers')
-        .update({ 
-          status: 'redeemed',
-          redeemed_by: user.id,
-          redeemed_at: new Date().toISOString()
-        })
-        .eq('id', voucher.id);
-
-      if (redeemError) throw redeemError;
-
       // Refresh credits in context
       await refreshCredits();
 
       toast({
         title: 'Voucher berhasil diredeem!',
-        description: `${voucher.credits.toLocaleString()} kredit telah ditambahkan ke akun Anda.`,
+        description: `${result.credits_added?.toLocaleString()} kredit telah ditambahkan ke akun Anda.`,
       });
 
       setVoucherCode('');

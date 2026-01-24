@@ -449,6 +449,7 @@ export type Database = {
         Args: { check_user_id: string }
         Returns: boolean
       }
+      redeem_voucher: { Args: { voucher_code: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "premium" | "user"
