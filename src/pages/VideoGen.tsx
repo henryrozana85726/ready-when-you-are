@@ -12,15 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GenerationStatus } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import {
   getModelsByServer,
   calculatePrice,
-  ModelWithPricing,
 } from '@/config/videoModels';
 
 type GenerationType = 'text-to-video' | 'image-to-video' | 'first-last-frame';
@@ -157,232 +155,277 @@ const VideoGen: React.FC = () => {
   }, [selectedModel, generationType, mode]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
+      {/* Controls */}
+      <div className="flex flex-col gap-6">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Video Generation</h2>
+          <h2 className="text-3xl font-bold text-foreground mb-2">Video Generation</h2>
           <p className="text-muted-foreground">Create AI-powered videos from text or images.</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg">
+
+        {/* Credits Badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted border border-border rounded-lg w-fit">
           <DollarSign size={16} className="text-primary" />
           <span className="text-sm text-muted-foreground">Credits:</span>
           <span className="font-bold text-foreground">${credits.toFixed(2)}</span>
         </div>
+
+        {/* Server Tabs */}
+        <Tabs value={server} onValueChange={handleServerChange}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="server1">fal.ai</TabsTrigger>
+            <TabsTrigger value="server2">GMI Cloud</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <form onSubmit={handleGenerate} className="flex flex-col gap-4 flex-1">
+          {/* Model Selection */}
+          <div className="space-y-2">
+            <Label>Model</Label>
+            <Select value={selectedModelId} onValueChange={handleModelChange}>
+              <SelectTrigger className="bg-muted border-border">
+                <SelectValue placeholder="Choose a video model..." />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Prompt */}
+          <div className="space-y-2">
+            <Label htmlFor="prompt">Prompt</Label>
+            <Textarea
+              id="prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe the video you want to create..."
+              className="h-32 bg-muted border-border resize-none"
+              required
+            />
+          </div>
+
+          {/* Negative Prompt */}
+          {selectedModel?.supportsNegativePrompt && (
+            <div className="space-y-2">
+              <Label>Negative Prompt</Label>
+              <Input
+                value={negativePrompt}
+                onChange={(e) => setNegativePrompt(e.target.value)}
+                placeholder="What to avoid..."
+                className="bg-muted border-border"
+              />
+            </div>
+          )}
+
+          {/* Image Upload */}
+          {selectedModel && (selectedModel.supportsImageToVideo || selectedModel.supportsFirstLastFrame) && (
+            <div className="space-y-2">
+              <Label>Images (optional, max {selectedModel.maxImages})</Label>
+              <div className="flex flex-wrap gap-2">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
+                    <img
+                      src={URL.createObjectURL(img)}
+                      alt={`Upload ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-1 right-1 p-1 bg-background/80 rounded-full hover:bg-background"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {images.length < selectedModel.maxImages && (
+                  <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                    <Upload size={18} className="text-muted-foreground" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {generationType === 'text-to-video' && 'Text to Video'}
+                {generationType === 'image-to-video' && 'Image to Video'}
+                {generationType === 'first-last-frame' && 'First & Last Frame'}
+              </p>
+            </div>
+          )}
+
+          {/* Options */}
+          {selectedModel && (
+            <div className="space-y-2">
+              <Label>Options</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Aspect Ratio */}
+                {showAspectRatio && (
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg text-sm font-medium border bg-muted border-border text-muted-foreground text-left"
+                  >
+                    <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                      <SelectTrigger className="border-0 bg-transparent p-0 h-auto">
+                        <SelectValue placeholder="Aspect Ratio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedModel.aspectRatios.map((ar) => (
+                          <SelectItem key={ar} value={ar}>{ar}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </button>
+                )}
+
+                {/* Duration */}
+                {selectedModel.durations.length > 0 && (
+                  <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedModel.durations.map((d) => (
+                        <SelectItem key={d} value={String(d)}>{d}s</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Resolution */}
+                {selectedModel.resolutions.length > 1 && (
+                  <Select value={resolution} onValueChange={setResolution}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Resolution" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedModel.resolutions.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Mode */}
+                {availableModes.length > 1 && (
+                  <Select value={mode} onValueChange={setMode}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableModes.map((m) => (
+                        <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Audio Option */}
+          {selectedModel?.supportsAudio && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="audio"
+                checked={audioEnabled}
+                onCheckedChange={(checked) => setAudioEnabled(checked === true)}
+              />
+              <Label htmlFor="audio" className="cursor-pointer text-sm">
+                Generate Audio
+              </Label>
+            </div>
+          )}
+
+          {/* Price Info */}
+          {selectedModel && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Info size={14} />
+              <span>Estimated cost:</span>
+              <span className="font-bold text-primary">${currentPrice.toFixed(2)}</span>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={status === GenerationStatus.LOADING || !prompt.trim() || !selectedModel}
+            size="lg"
+            className="mt-auto w-full gap-2 gradient-brand text-primary-foreground hover:opacity-90"
+          >
+            {status === GenerationStatus.LOADING ? (
+              <>
+                <Loader2 className="animate-spin" /> Generating...
+              </>
+            ) : (
+              <>
+                <Play fill="currentColor" /> Generate Video
+              </>
+            )}
+          </Button>
+        </form>
       </div>
 
-      {/* Server Tabs */}
-      <Tabs value={server} onValueChange={handleServerChange}>
-        <TabsList className="grid grid-cols-2 w-full max-w-md">
-          <TabsTrigger value="server1">Server 1 (fal.ai)</TabsTrigger>
-          <TabsTrigger value="server2">Server 2 (GMI Cloud)</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={server} className="mt-6">
-          <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-            {/* Model Selection */}
-            <div className="space-y-2">
-              <Label>Select Model</Label>
-              <Select value={selectedModelId} onValueChange={handleModelChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a video model..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedModel && (
-              <form onSubmit={handleGenerate} className="space-y-6">
-                {/* Prompt */}
-                <div className="space-y-2">
-                  <Label>Prompt</Label>
-                  <Textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the video you want to create..."
-                    className="h-24 bg-muted border-border resize-none"
-                    required
-                  />
-                </div>
-
-                {/* Negative Prompt */}
-                {selectedModel.supportsNegativePrompt && (
-                  <div className="space-y-2">
-                    <Label>Negative Prompt (optional)</Label>
-                    <Input
-                      value={negativePrompt}
-                      onChange={(e) => setNegativePrompt(e.target.value)}
-                      placeholder="What to avoid..."
-                      className="bg-muted border-border"
-                    />
-                  </div>
-                )}
-
-                {/* Image Upload */}
-                {(selectedModel.supportsImageToVideo || selectedModel.supportsFirstLastFrame) && (
-                  <div className="space-y-2">
-                    <Label>
-                      Upload Images (optional, max {selectedModel.maxImages})
-                    </Label>
-                    <div className="flex flex-wrap gap-3">
-                      {images.map((img, idx) => (
-                        <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
-                          <img
-                            src={URL.createObjectURL(img)}
-                            alt={`Upload ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage(idx)}
-                            className="absolute top-1 right-1 p-1 bg-background/80 rounded-full hover:bg-background"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ))}
-                      {images.length < selectedModel.maxImages && (
-                        <label className="w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
-                          <Upload size={20} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground mt-1">Upload</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {generationType === 'text-to-video' && 'No image = Text to Video'}
-                      {generationType === 'image-to-video' && '1 image = Image to Video'}
-                      {generationType === 'first-last-frame' && '2 images = First & Last Frame'}
-                    </p>
-                  </div>
-                )}
-
-                {/* Options Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* Aspect Ratio */}
-                  {showAspectRatio && (
-                    <div className="space-y-2">
-                      <Label>Aspect Ratio</Label>
-                      <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedModel.aspectRatios.map((ar) => (
-                            <SelectItem key={ar} value={ar}>{ar}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Duration */}
-                  {selectedModel.durations.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Duration</Label>
-                      <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedModel.durations.map((d) => (
-                            <SelectItem key={d} value={String(d)}>{d}s</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Resolution */}
-                  {selectedModel.resolutions.length > 1 && (
-                    <div className="space-y-2">
-                      <Label>Resolution</Label>
-                      <Select value={resolution} onValueChange={setResolution}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedModel.resolutions.map((r) => (
-                            <SelectItem key={r} value={r}>{r}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Mode */}
-                  {availableModes.length > 1 && (
-                    <div className="space-y-2">
-                      <Label>Mode</Label>
-                      <Select value={mode} onValueChange={setMode}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModes.map((m) => (
-                            <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-
-                {/* Audio Option */}
-                {selectedModel.supportsAudio && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="audio"
-                      checked={audioEnabled}
-                      onCheckedChange={(checked) => setAudioEnabled(checked === true)}
-                    />
-                    <Label htmlFor="audio" className="cursor-pointer">
-                      Generate Audio
-                    </Label>
-                  </div>
-                )}
-
-                {/* Price & Submit */}
-                <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <div className="flex items-center gap-2">
-                    <Info size={16} className="text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Estimated cost:</span>
-                    <span className="text-lg font-bold text-primary">${currentPrice.toFixed(2)}</span>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={status === GenerationStatus.LOADING || !prompt.trim()}
-                    size="lg"
-                    className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    {status === GenerationStatus.LOADING ? (
-                      <>
-                        <Loader2 className="animate-spin" /> Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Play fill="currentColor" /> Generate Video
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            )}
+      {/* Preview Area */}
+      <div className="bg-muted rounded-xl border border-border p-4 flex items-center justify-center relative overflow-hidden group min-h-[400px]">
+        {status === GenerationStatus.IDLE && (
+          <div className="text-center text-muted-foreground">
+            <VideoPlaceholder />
+            <p className="mt-4">Select a model and enter a prompt to generate a video</p>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {status === GenerationStatus.LOADING && (
+          <div className="flex flex-col items-center gap-4 text-primary">
+            <Loader2 size={48} className="animate-spin" />
+            <p className="text-sm font-medium animate-pulse">Creating your video...</p>
+          </div>
+        )}
+
+        {status === GenerationStatus.ERROR && (
+          <div className="text-destructive text-center px-6">
+            <p className="mb-2">Something went wrong.</p>
+            <button
+              onClick={() => setStatus(GenerationStatus.IDLE)}
+              className="mt-4 text-sm underline hover:text-foreground"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {status === GenerationStatus.SUCCESS && (
+          <div className="relative w-full h-full flex items-center justify-center">
+            <p className="text-muted-foreground">Video preview will appear here</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
+const VideoPlaceholder = () => (
+  <svg
+    className="w-24 h-24 mx-auto text-muted-foreground/50"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1}
+      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+    />
+  </svg>
+);
 
 export default VideoGen;
