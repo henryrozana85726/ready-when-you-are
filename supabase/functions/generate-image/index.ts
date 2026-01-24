@@ -422,7 +422,7 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ imageUrl?: stri
   }
 }
 
-// GMI Cloud generation
+// GMI Cloud generation (queue-based API like fal.ai)
 interface GMICloudParams {
   apiKey: string;
   modelName: string;
@@ -439,49 +439,45 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
   try {
     const isImageToImage = images.length > 0;
     
-    // GMI Cloud endpoint (correct URL: api.gmi-serving.com)
-    const endpoint = "https://api.gmi-serving.com/v1/images/generations";
+    // GMI Cloud uses queue-based API
+    const submitEndpoint = "https://console.gmicloud.ai/api/v1/ie/requestqueue/apikey/requests";
 
-    // Build request body
-    const requestBody: any = {
-      model: modelName,
+    // Build payload based on model
+    const payload: any = {
       prompt,
     };
 
-    // Add aspect ratio or size
     if (modelName === 'seedream-4-0-250828') {
-      // Seedream 4 uses specific size format
-      requestBody.size = aspectRatio;
+      // Seedream 4 uses 'size' parameter
+      if (aspectRatio) {
+        payload.size = aspectRatio;
+      }
+      payload.watermark = false;
+      payload.response_format = "url";
     } else {
-      // Nano Banana Pro uses aspect_ratio
+      // Gemini 3 Pro Image Preview uses 'aspect_ratio' and 'image_size'
       if (aspectRatio && aspectRatio !== 'auto') {
-        requestBody.aspect_ratio = aspectRatio;
+        payload.aspect_ratio = aspectRatio;
       }
-      
-      // Add resolution
       if (resolution) {
-        const resolutionMap: Record<string, string> = {
-          '1K': '1024x1024',
-          '2K': '2048x2048',
-          '4K': '4096x4096',
-        };
-        requestBody.size = resolutionMap[resolution] || resolution;
+        payload.image_size = resolution; // '1K', '2K', '4K'
       }
-    }
-
-    // Add output format
-    if (outputFormat) {
-      requestBody.response_format = outputFormat;
     }
 
     // Add images for image-to-image
     if (isImageToImage) {
-      requestBody.images = images;
+      payload.image = images;
     }
 
-    console.log("GMI Cloud request:", { model: modelName, prompt: prompt.substring(0, 50) });
+    const requestBody = {
+      model: modelName,
+      payload,
+    };
 
-    const response = await fetch(endpoint, {
+    console.log("GMI Cloud submit request:", { model: modelName, prompt: prompt.substring(0, 50) });
+
+    // Submit request to queue
+    const submitResponse = await fetch(submitEndpoint, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -490,26 +486,81 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
       body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("GMI Cloud error:", response.status, errorText);
-      return { error: `GMI Cloud error: ${response.status}` };
+    if (!submitResponse.ok) {
+      const errorText = await submitResponse.text();
+      console.error("GMI Cloud submit error:", submitResponse.status, errorText);
+      return { error: `GMI Cloud submit error: ${submitResponse.status} - ${errorText}` };
     }
 
-    const data = await response.json();
-    const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+    const submitData = await submitResponse.json();
+    const requestId = submitData.id || submitData.request_id;
 
-    if (!imageUrl) {
-      console.error("No image URL in GMI response:", data);
-      return { error: "No image URL in response" };
+    if (!requestId) {
+      console.error("No request ID in GMI response:", submitData);
+      return { error: "No request ID in GMI response" };
     }
 
-    // If b64_json, convert to data URL
-    if (data.data?.[0]?.b64_json) {
-      return { imageUrl: `data:image/${outputFormat || 'png'};base64,${data.data[0].b64_json}` };
+    console.log("GMI Cloud submit response:", { requestId });
+
+    // Poll for result
+    const pollEndpoint = `https://console.gmicloud.ai/api/v1/ie/requestqueue/apikey/requests/${requestId}`;
+    const maxAttempts = 120; // 4 minutes max
+    const pollInterval = 2000; // 2 seconds
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const statusResponse = await fetch(pollEndpoint, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        console.error("GMI Cloud poll error:", statusResponse.status);
+        continue;
+      }
+
+      const statusData = await statusResponse.json();
+      const status = statusData.status?.toLowerCase();
+
+      console.log("GMI Cloud status:", status);
+
+      if (status === 'completed' || status === 'succeeded' || status === 'success') {
+        // Extract image URL from response
+        const imageUrl = statusData.result?.images?.[0]?.url ||
+                        statusData.result?.image_url ||
+                        statusData.output?.images?.[0]?.url ||
+                        statusData.output?.url ||
+                        statusData.images?.[0]?.url ||
+                        statusData.url;
+
+        if (imageUrl) {
+          return { imageUrl };
+        }
+
+        // Check for base64
+        const b64 = statusData.result?.images?.[0]?.b64_json ||
+                   statusData.output?.images?.[0]?.b64_json;
+        if (b64) {
+          return { imageUrl: `data:image/${outputFormat || 'png'};base64,${b64}` };
+        }
+
+        console.error("Completed but no image URL found:", statusData);
+        return { error: "Completed but no image URL in response" };
+      }
+
+      if (status === 'failed' || status === 'error') {
+        const errorMsg = statusData.error || statusData.message || "Generation failed";
+        console.error("GMI Cloud generation failed:", errorMsg);
+        return { error: errorMsg };
+      }
+
+      // Continue polling if pending/processing/in_progress
     }
 
-    return { imageUrl };
+    return { error: "GMI Cloud generation timed out" };
   } catch (error) {
     console.error("GMI Cloud error:", error);
     return { error: error instanceof Error ? error.message : "Unknown error" };
