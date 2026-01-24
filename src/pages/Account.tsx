@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, Shield, CreditCard, Bell, Ticket, Coins, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Shield, CreditCard, Bell, Ticket, Coins, Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -11,26 +11,91 @@ const Account: React.FC = () => {
   const { toast } = useToast();
   const [voucherCode, setVoucherCode] = useState('');
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockMinutesRemaining, setLockMinutesRemaining] = useState(0);
+
+  // Check if user is locked out
+  useEffect(() => {
+    const checkLockStatus = async () => {
+      if (!user) return;
+      
+      const { data: attempts } = await supabase
+        .from('voucher_redemption_attempts')
+        .select('attempted_at')
+        .eq('user_id', user.id)
+        .gte('attempted_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+        .order('attempted_at', { ascending: false })
+        .limit(3);
+
+      if (attempts && attempts.length >= 3) {
+        setIsLocked(true);
+        const oldestAttempt = new Date(attempts[2].attempted_at);
+        const unlockTime = new Date(oldestAttempt.getTime() + 60 * 60 * 1000);
+        const remaining = Math.ceil((unlockTime.getTime() - Date.now()) / (60 * 1000));
+        setLockMinutesRemaining(Math.max(0, remaining));
+      } else {
+        setIsLocked(false);
+        setLockMinutesRemaining(0);
+      }
+    };
+
+    checkLockStatus();
+    const interval = setInterval(checkLockStatus, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleRedeemVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voucherCode.trim() || !user) return;
 
+    if (isLocked) {
+      toast({
+        title: 'Akun terkunci',
+        description: `Terlalu banyak percobaan gagal. Coba lagi dalam ${lockMinutesRemaining} menit.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsRedeeming(true);
     try {
-      // Check if voucher exists
+      // Check if voucher exists and is active
       const { data: voucher, error: voucherError } = await supabase
         .from('vouchers')
         .select('*')
         .eq('code', voucherCode.toUpperCase())
+        .eq('status', 'active')
         .single();
 
       if (voucherError || !voucher) {
-        toast({
-          title: 'Voucher tidak valid',
-          description: 'Kode voucher tidak ditemukan atau sudah digunakan.',
-          variant: 'destructive',
-        });
+        // Log failed attempt
+        await supabase
+          .from('voucher_redemption_attempts')
+          .insert({ user_id: user.id, attempted_code: voucherCode.toUpperCase() });
+
+        // Recheck lock status
+        const { data: attempts } = await supabase
+          .from('voucher_redemption_attempts')
+          .select('attempted_at')
+          .eq('user_id', user.id)
+          .gte('attempted_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+
+        if (attempts && attempts.length >= 3) {
+          setIsLocked(true);
+          setLockMinutesRemaining(60);
+          toast({
+            title: 'Akun terkunci',
+            description: 'Terlalu banyak percobaan gagal. Akun Anda dikunci selama 1 jam.',
+            variant: 'destructive',
+          });
+        } else {
+          const remainingAttempts = 3 - (attempts?.length || 0);
+          toast({
+            title: 'Voucher tidak valid',
+            description: `Kode voucher tidak ditemukan atau sudah digunakan. Sisa percobaan: ${remainingAttempts}`,
+            variant: 'destructive',
+          });
+        }
         return;
       }
 
@@ -50,13 +115,17 @@ const Account: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // Delete voucher after successful redemption
-      const { error: deleteError } = await supabase
+      // Update voucher status to redeemed (instead of deleting)
+      const { error: redeemError } = await supabase
         .from('vouchers')
-        .delete()
+        .update({ 
+          status: 'redeemed',
+          redeemed_by: user.id,
+          redeemed_at: new Date().toISOString()
+        })
         .eq('id', voucher.id);
 
-      if (deleteError) throw deleteError;
+      if (redeemError) throw redeemError;
 
       // Refresh credits in context
       await refreshCredits();
@@ -116,28 +185,40 @@ const Account: React.FC = () => {
               <Ticket size={20} className="text-primary" />
               <h3 className="font-bold">Redeem Voucher</h3>
             </div>
-            <form onSubmit={handleRedeemVoucher} className="space-y-3">
-              <Input
-                value={voucherCode}
-                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                placeholder="Masukkan kode voucher"
-                className="font-mono text-center"
-              />
-              <Button
-                type="submit"
-                className="w-full gap-2"
-                disabled={isRedeeming || !voucherCode.trim()}
-              >
-                {isRedeeming ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Memproses...
-                  </>
-                ) : (
-                  'Redeem'
-                )}
-              </Button>
-            </form>
+            {isLocked ? (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-center space-y-2">
+                <Lock size={24} className="mx-auto text-destructive" />
+                <p className="text-sm text-destructive font-medium">
+                  Akun terkunci karena terlalu banyak percobaan gagal
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Coba lagi dalam {lockMinutesRemaining} menit
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleRedeemVoucher} className="space-y-3">
+                <Input
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                  placeholder="Masukkan kode voucher"
+                  className="font-mono text-center"
+                />
+                <Button
+                  type="submit"
+                  className="w-full gap-2"
+                  disabled={isRedeeming || !voucherCode.trim()}
+                >
+                  {isRedeeming ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    'Redeem'
+                  )}
+                </Button>
+              </form>
+            )}
           </div>
         </div>
 

@@ -1045,7 +1045,9 @@ const VouchersManagement: React.FC = () => {
               <TableRow>
                 <TableHead>Code</TableHead>
                 <TableHead>Credits</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead>Redeemed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1069,14 +1071,33 @@ const VouchersManagement: React.FC = () => {
                       <span>{voucher.credits.toLocaleString()}</span>
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      voucher.status === 'active' ? 'bg-success/20 text-success' :
+                      voucher.status === 'redeemed' ? 'bg-primary/20 text-primary' :
+                      voucher.status === 'expired' ? 'bg-muted text-muted-foreground' :
+                      voucher.status === 'blocked' ? 'bg-destructive/20 text-destructive' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {voucher.status}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {new Date(voucher.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {voucher.redeemed_at ? (
+                      <span>{new Date(voucher.redeemed_at).toLocaleString()}</span>
+                    ) : (
+                      <span className="text-muted-foreground/50">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:text-destructive"
+                      disabled={voucher.status === 'redeemed'}
                       onClick={() => {
                         setVoucherToDelete({ id: voucher.id, code: voucher.code });
                         setDeleteDialogOpen(true);
@@ -1089,7 +1110,7 @@ const VouchersManagement: React.FC = () => {
               ))}
               {(!vouchers || vouchers.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No vouchers found. Create one to get started.
                   </TableCell>
                 </TableRow>

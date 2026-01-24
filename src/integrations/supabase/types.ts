@@ -373,6 +373,27 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_redemption_attempts: {
+        Row: {
+          attempted_at: string
+          attempted_code: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          attempted_code: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          attempted_code?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vouchers: {
         Row: {
           code: string
@@ -380,6 +401,9 @@ export type Database = {
           created_by: string | null
           credits: number
           id: string
+          redeemed_at: string | null
+          redeemed_by: string | null
+          status: string
         }
         Insert: {
           code: string
@@ -387,6 +411,9 @@ export type Database = {
           created_by?: string | null
           credits?: number
           id?: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          status?: string
         }
         Update: {
           code?: string
@@ -394,6 +421,9 @@ export type Database = {
           created_by?: string | null
           credits?: number
           id?: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          status?: string
         }
         Relationships: []
       }
@@ -406,8 +436,16 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_voucher_lock_remaining_minutes: {
+        Args: { check_user_id: string }
+        Returns: number
+      }
       has_model_access: { Args: { model_id: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_voucher_redemption_locked: {
+        Args: { check_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "premium" | "user"
