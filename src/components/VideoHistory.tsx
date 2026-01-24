@@ -120,7 +120,7 @@ const VideoHistory: React.FC = () => {
 
       {/* Video Detail Dialog */}
       <Dialog open={!!selectedVideo} onOpenChange={(open) => !open && setSelectedVideo(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedVideo && <VideoDetailContent video={selectedVideo} onClose={() => setSelectedVideo(null)} />}
         </DialogContent>
       </Dialog>
@@ -235,7 +235,6 @@ const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video }) => {
             src={video.output_url}
             className="w-full max-h-[400px] object-contain"
             controls
-            autoPlay
             muted
           />
         </div>
