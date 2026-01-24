@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Play, Loader2, Upload, X, Coins, Info, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useQueryClient } from '@tanstack/react-query';
+import VideoHistory from '@/components/VideoHistory';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -27,6 +29,7 @@ type GenerationType = 'text-to-video' | 'image-to-video' | 'first-last-frame';
 const VideoGen: React.FC = () => {
   const { credits, refreshCredits } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // State
   const [server, setServer] = useState<'server1' | 'server2'>('server1');
@@ -170,6 +173,9 @@ const VideoGen: React.FC = () => {
       // Refresh user credits after successful generation
       await refreshCredits();
       
+      // Refresh video history
+      queryClient.invalidateQueries({ queryKey: ['video-history'] });
+      
       toast({
         title: 'Video berhasil dibuat!',
         description: `Video Anda sudah siap. ${data.creditsUsed || currentPrice} kredit telah digunakan.`,
@@ -239,7 +245,7 @@ const VideoGen: React.FC = () => {
   }, [generationType, selectedModel]);
 
   return (
-    <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
+    <div className="max-w-7xl mx-auto grid lg:grid-cols-[1fr,1.5fr,1fr] gap-6 min-h-[calc(100vh-8rem)]">
       {/* Controls */}
       <div className="flex flex-col gap-6">
         <div>
@@ -508,6 +514,11 @@ const VideoGen: React.FC = () => {
             <p>Video generated but URL not available</p>
           </div>
         )}
+      </div>
+
+      {/* History Panel */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <VideoHistory />
       </div>
     </div>
   );
