@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Play, Loader2, Upload, X, Coins, Info } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Play, Loader2, Upload, X, Coins, Info, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import {
   getModelsByServer,
   calculatePrice,
 } from '@/config/videoModels';
+import { supabase } from '@/integrations/supabase/client';
 
 type GenerationType = 'text-to-video' | 'image-to-video' | 'first-last-frame';
 
@@ -39,6 +40,8 @@ const VideoGen: React.FC = () => {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [status, setStatus] = useState<GenerationStatus>(GenerationStatus.IDLE);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>('');
 
   // Get models for selected server
   const models = useMemo(() => getModelsByServer(server), [server]);
@@ -103,6 +106,16 @@ const VideoGen: React.FC = () => {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  // Convert file to base64 data URL
+  const fileToBase64 = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Handle generate
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,15 +131,52 @@ const VideoGen: React.FC = () => {
     }
 
     setStatus(GenerationStatus.LOADING);
-    toast({
-      title: 'Segera hadir!',
-      description: 'Fitur video generation sedang dalam pengembangan.',
-    });
-    
-    // Simulate loading then reset
-    setTimeout(() => {
-      setStatus(GenerationStatus.IDLE);
-    }, 2000);
+    setGeneratedVideoUrl(null);
+    setStatusMessage('Mengirim permintaan...');
+
+    try {
+      // Convert images to base64
+      const imageBase64s = await Promise.all(images.map(fileToBase64));
+
+      setStatusMessage('Memproses video... (ini bisa memakan waktu beberapa menit)');
+
+      const { data, error } = await supabase.functions.invoke('generate-video', {
+        body: {
+          prompt,
+          negativePrompt: negativePrompt || undefined,
+          aspectRatio,
+          duration,
+          resolution,
+          audioEnabled,
+          images: imageBase64s,
+          modelId: selectedModel.id,
+          server,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setGeneratedVideoUrl(data.videoUrl);
+      setStatus(GenerationStatus.SUCCESS);
+      toast({
+        title: 'Video berhasil dibuat!',
+        description: 'Video Anda sudah siap untuk diunduh.',
+      });
+    } catch (error) {
+      console.error('Video generation error:', error);
+      setStatus(GenerationStatus.ERROR);
+      toast({
+        title: 'Gagal membuat video',
+        description: error instanceof Error ? error.message : 'Terjadi kesalahan',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Get available modes based on generation type
@@ -409,7 +459,7 @@ const VideoGen: React.FC = () => {
         {status === GenerationStatus.LOADING && (
           <div className="flex flex-col items-center gap-4 text-primary">
             <Loader2 size={48} className="animate-spin" />
-            <p className="text-sm font-medium animate-pulse">Creating your video...</p>
+            <p className="text-sm font-medium animate-pulse">{statusMessage || 'Creating your video...'}</p>
           </div>
         )}
 
@@ -425,9 +475,31 @@ const VideoGen: React.FC = () => {
           </div>
         )}
 
-        {status === GenerationStatus.SUCCESS && (
-          <div className="relative w-full h-full flex items-center justify-center">
-            <p className="text-muted-foreground">Video preview will appear here</p>
+        {status === GenerationStatus.SUCCESS && generatedVideoUrl && (
+          <div className="relative w-full h-full flex flex-col items-center justify-center gap-4">
+            <video
+              src={generatedVideoUrl}
+              controls
+              autoPlay
+              loop
+              className="max-w-full max-h-[500px] rounded-lg"
+            />
+            <a
+              href={generatedVideoUrl}
+              download="generated-video.mp4"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+            >
+              <Download size={18} />
+              Download Video
+            </a>
+          </div>
+        )}
+
+        {status === GenerationStatus.SUCCESS && !generatedVideoUrl && (
+          <div className="text-center text-muted-foreground">
+            <p>Video generated but URL not available</p>
           </div>
         )}
       </div>
