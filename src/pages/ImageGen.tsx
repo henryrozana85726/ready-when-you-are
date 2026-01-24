@@ -1,33 +1,196 @@
-import React, { useState } from 'react';
-import { Download, Sparkles, Loader2, RefreshCcw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Sparkles, Loader2, Upload, X, Coins, Info, Download, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GenerationStatus } from '@/types';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import {
+  getImageModelsByServer,
+  calculateImagePrice,
+} from '@/config/imageModels';
+import { supabase } from '@/integrations/supabase/client';
 
-const aspectRatios = ['1:1', '16:9', '9:16', '3:4', '4:3'];
+type GenerationType = 'text-to-image' | 'image-to-image';
 
 const ImageGen: React.FC = () => {
+  const { credits, refreshCredits } = useAuth();
+  const { toast } = useToast();
+  
+  // State
+  const [server, setServer] = useState<'server1' | 'server2'>('server1');
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [prompt, setPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [aspectRatio, setAspectRatio] = useState('');
+  const [resolution, setResolution] = useState('');
+  const [outputFormat, setOutputFormat] = useState('');
+  const [images, setImages] = useState<File[]>([]);
   const [status, setStatus] = useState<GenerationStatus>(GenerationStatus.IDLE);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
+  // Get models for selected server
+  const models = useMemo(() => getImageModelsByServer(server), [server]);
+  
+  // Get selected model
+  const selectedModel = useMemo(
+    () => models.find((m) => m.id === selectedModelId),
+    [models, selectedModelId]
+  );
+
+  // Determine generation type based on uploaded images
+  const generationType: GenerationType = useMemo(() => {
+    return images.length > 0 ? 'image-to-image' : 'text-to-image';
+  }, [images.length]);
+
+  // Calculate current price
+  const currentPrice = useMemo(() => {
+    if (!selectedModel) return 0;
+    return calculateImagePrice(selectedModel, { resolution });
+  }, [selectedModel, resolution]);
+
+  // Reset form when model changes
+  const handleModelChange = (modelId: string) => {
+    setSelectedModelId(modelId);
+    const model = models.find((m) => m.id === modelId);
+    if (model) {
+      setAspectRatio(model.defaultAspectRatio);
+      setResolution(model.defaultResolution);
+      setOutputFormat(model.defaultOutputFormat);
+      setImages([]);
+    }
+  };
+
+  // Handle server change
+  const handleServerChange = (newServer: string) => {
+    setServer(newServer as 'server1' | 'server2');
+    setSelectedModelId('');
+    setImages([]);
+  };
+
+  // Handle image upload
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    const maxImages = selectedModel?.maxImages || 1;
+    const newImages = [...images, ...Array.from(files)].slice(0, maxImages);
+    
+    // Check file constraints for server 2
+    if (selectedModel?.imageConstraints) {
+      const { maxSizeMb, allowedFormats } = selectedModel.imageConstraints;
+      const validImages = newImages.filter(file => {
+        const sizeMb = file.size / (1024 * 1024);
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (maxSizeMb && sizeMb > maxSizeMb) {
+          toast({
+            title: 'File terlalu besar',
+            description: `Maksimal ${maxSizeMb}MB per file`,
+            variant: 'destructive',
+          });
+          return false;
+        }
+        if (allowedFormats && ext && !allowedFormats.includes(ext)) {
+          toast({
+            title: 'Format tidak didukung',
+            description: `Format yang diizinkan: ${allowedFormats.join(', ')}`,
+            variant: 'destructive',
+          });
+          return false;
+        }
+        return true;
+      });
+      setImages(validImages);
+    } else {
+      setImages(newImages);
+    }
+  };
+
+  // Remove image
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+  // Convert file to base64 data URL
+  const fileToBase64 = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Get available aspect ratios based on generation type
+  const availableAspectRatios = useMemo(() => {
+    if (!selectedModel || selectedModel.aspectRatios.length === 0) return [];
+    
+    // Check if we should add 'auto' for image mode
+    if (selectedModel.aspectRatioConditions?.addAutoForImageMode && generationType === 'image-to-image') {
+      return ['auto', ...selectedModel.aspectRatios];
+    }
+    
+    return selectedModel.aspectRatios;
+  }, [selectedModel, generationType]);
+
+  // Update aspect ratio when generation type changes for models with addAutoForImageMode
+  React.useEffect(() => {
+    if (!selectedModel?.aspectRatioConditions?.addAutoForImageMode) return;
+    
+    if (generationType === 'text-to-image') {
+      // Switch to default when switching to text-to-image
+      if (aspectRatio === 'auto') {
+        setAspectRatio(selectedModel.defaultAspectRatio);
+      }
+    } else {
+      // Switch to 'auto' when switching to image mode
+      setAspectRatio('auto');
+    }
+  }, [generationType, selectedModel]);
+
+  // Handle generate
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!selectedModel || !prompt.trim()) return;
+
+    if (credits < currentPrice) {
+      toast({
+        title: 'Kredit tidak cukup',
+        description: `Anda membutuhkan ${currentPrice.toLocaleString()} kredit tapi hanya memiliki ${credits.toLocaleString()} kredit`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setStatus(GenerationStatus.LOADING);
     setError(null);
     setResultImage(null);
 
     try {
+      // Convert images to base64
+      const imageBase64s = await Promise.all(images.map(fileToBase64));
+
       const { data, error: fnError } = await supabase.functions.invoke('generate-image', {
-        body: { prompt, aspectRatio },
+        body: {
+          prompt,
+          aspectRatio,
+          resolution,
+          outputFormat,
+          images: imageBase64s,
+          modelId: selectedModel.id,
+          modelName: selectedModel.name,
+          server,
+          creditsToUse: currentPrice,
+        },
       });
 
       if (fnError) {
@@ -41,9 +204,13 @@ const ImageGen: React.FC = () => {
       if (data?.imageUrl) {
         setResultImage(data.imageUrl);
         setStatus(GenerationStatus.SUCCESS);
+        
+        // Refresh user credits after successful generation
+        await refreshCredits();
+        
         toast({
-          title: 'Image generated!',
-          description: 'Your image has been created successfully.',
+          title: 'Gambar berhasil dibuat!',
+          description: `${currentPrice.toLocaleString()} kredit telah digunakan.`,
         });
       } else {
         throw new Error('No image returned');
@@ -53,8 +220,8 @@ const ImageGen: React.FC = () => {
       setError(err.message || 'Failed to generate image');
       setStatus(GenerationStatus.ERROR);
       toast({
-        title: 'Generation failed',
-        description: err.message || 'Something went wrong',
+        title: 'Gagal membuat gambar',
+        description: err.message || 'Terjadi kesalahan',
         variant: 'destructive',
       });
     }
@@ -69,7 +236,40 @@ const ImageGen: React.FC = () => {
           <p className="text-muted-foreground">Transform your words into visual art.</p>
         </div>
 
+        {/* Credits Badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted border border-border rounded-lg w-fit">
+          <Coins size={16} className="text-primary" />
+          <span className="text-sm text-muted-foreground">Credits:</span>
+          <span className="font-bold text-foreground">{credits.toLocaleString()}</span>
+        </div>
+
+        {/* Server Tabs */}
+        <Tabs value={server} onValueChange={handleServerChange}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="server1">Server 1</TabsTrigger>
+            <TabsTrigger value="server2">Server 2</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <form onSubmit={handleGenerate} className="flex flex-col gap-4 flex-1">
+          {/* Model Selection */}
+          <div className="space-y-2">
+            <Label>Model</Label>
+            <Select value={selectedModelId} onValueChange={handleModelChange}>
+              <SelectTrigger className="bg-muted border-border">
+                <SelectValue placeholder="Pilih model..." />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Prompt */}
           <div className="space-y-2">
             <Label htmlFor="prompt">Prompt</Label>
             <Textarea
@@ -78,35 +278,122 @@ const ImageGen: React.FC = () => {
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="A futuristic city with flying cars, neon lights, cyberpunk style..."
               className="h-32 bg-muted border-border resize-none"
+              required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Aspect Ratio</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {aspectRatios.map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  onClick={() => setAspectRatio(ratio)}
-                  className={`
-                    px-3 py-2 rounded-lg text-sm font-medium border transition-all
-                    ${
-                      aspectRatio === ratio
-                        ? 'bg-primary/20 border-primary text-primary'
-                        : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground'
-                    }
-                  `}
-                >
-                  {ratio}
-                </button>
-              ))}
+          {/* Image Upload */}
+          {selectedModel && selectedModel.supportsImageToImage && (
+            <div className="space-y-2">
+              <Label>
+                Images (opsional, maks {selectedModel.maxImages})
+                {selectedModel.imageConstraints && (
+                  <span className="text-xs text-muted-foreground ml-2">
+                    (maks {selectedModel.imageConstraints.maxSizeMb}MB, {selectedModel.imageConstraints.allowedFormats?.join('/')})
+                  </span>
+                )}
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
+                    <img
+                      src={URL.createObjectURL(img)}
+                      alt={`Upload ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-1 right-1 p-1 bg-background/80 rounded-full hover:bg-background"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {images.length < selectedModel.maxImages && (
+                  <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                    <Upload size={18} className="text-muted-foreground" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      multiple
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {generationType === 'text-to-image' && 'Text to Image'}
+                {generationType === 'image-to-image' && 'Image to Image'}
+              </p>
             </div>
-          </div>
+          )}
+
+          {/* Options */}
+          {selectedModel && (
+            <div className="space-y-2">
+              <Label>Options</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Aspect Ratio */}
+                {availableAspectRatios.length > 0 && (
+                  <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Aspect Ratio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAspectRatios.map((ar) => (
+                        <SelectItem key={ar} value={ar} className="capitalize">
+                          {ar === 'auto' ? 'Auto' : ar}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Resolution */}
+                {selectedModel.resolutions.length > 0 && (
+                  <Select value={resolution} onValueChange={setResolution}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Resolution" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedModel.resolutions.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Output Format */}
+                {selectedModel.outputFormats.length > 0 && (
+                  <Select value={outputFormat} onValueChange={setOutputFormat}>
+                    <SelectTrigger className="bg-muted border-border">
+                      <SelectValue placeholder="Format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedModel.outputFormats.map((f) => (
+                        <SelectItem key={f} value={f} className="uppercase">{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Price Info */}
+          {selectedModel && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Info size={14} />
+              <span>Estimasi biaya:</span>
+              <span className="font-bold text-primary">{currentPrice.toLocaleString()} kredit</span>
+            </div>
+          )}
 
           <Button
             type="submit"
-            disabled={status === GenerationStatus.LOADING || !prompt.trim()}
+            disabled={status === GenerationStatus.LOADING || !prompt.trim() || !selectedModel}
             size="lg"
             className="mt-auto w-full gap-2 gradient-brand text-primary-foreground hover:opacity-90"
           >
@@ -128,26 +415,26 @@ const ImageGen: React.FC = () => {
         {status === GenerationStatus.IDLE && (
           <div className="text-center text-muted-foreground">
             <ImagePlaceholder />
-            <p className="mt-4">Enter a prompt to generate an image</p>
+            <p className="mt-4">Pilih model dan masukkan prompt untuk generate gambar</p>
           </div>
         )}
 
         {status === GenerationStatus.LOADING && (
           <div className="flex flex-col items-center gap-4 text-primary">
             <Loader2 size={48} className="animate-spin" />
-            <p className="text-sm font-medium animate-pulse">Dreaming up your image...</p>
+            <p className="text-sm font-medium animate-pulse">Membuat gambar...</p>
           </div>
         )}
 
         {status === GenerationStatus.ERROR && (
           <div className="text-destructive text-center px-6">
-            <p className="mb-2">Something went wrong.</p>
+            <p className="mb-2">Terjadi kesalahan.</p>
             <p className="text-sm opacity-80">{error}</p>
             <button
               onClick={() => setStatus(GenerationStatus.IDLE)}
               className="mt-4 text-sm underline hover:text-foreground"
             >
-              Try Again
+              Coba Lagi
             </button>
           </div>
         )}
@@ -162,7 +449,7 @@ const ImageGen: React.FC = () => {
             <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <a
                 href={resultImage}
-                download={`bs30-generated-${Date.now()}.png`}
+                download={`generated-${Date.now()}.${outputFormat || 'png'}`}
                 className="p-2 bg-background/80 hover:bg-background text-foreground rounded-lg backdrop-blur-sm transition-colors border border-border"
               >
                 <Download size={20} />
