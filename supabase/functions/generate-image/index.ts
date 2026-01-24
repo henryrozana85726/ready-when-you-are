@@ -439,8 +439,8 @@ async function generateWithGMICloud(params: GMICloudParams): Promise<{ imageUrl?
   try {
     const isImageToImage = images.length > 0;
     
-    // GMI Cloud endpoint
-    const endpoint = "https://api.gmicloud.ai/v1/images/generations";
+    // GMI Cloud endpoint (correct URL: api.gmi-serving.com)
+    const endpoint = "https://api.gmi-serving.com/v1/images/generations";
 
     // Build request body
     const requestBody: any = {
