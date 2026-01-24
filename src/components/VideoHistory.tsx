@@ -161,7 +161,7 @@ const ThumbnailItem: React.FC<ThumbnailItemProps> = ({ item, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className="relative aspect-video bg-muted/50 border border-border rounded-lg overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all group focus:outline-none focus:ring-2 focus:ring-primary"
+      className="relative aspect-square bg-muted/50 border border-border rounded-lg overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all group focus:outline-none focus:ring-2 focus:ring-primary"
     >
       {/* Video thumbnail or placeholder */}
       {isCompleted && item.output_url ? (
