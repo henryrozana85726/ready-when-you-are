@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Play, Clock, Coins, AlertCircle, Loader2, X, Video } from 'lucide-react';
+import { Download, Play, Clock, Coins, AlertCircle, Loader2, Video, Copy, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 interface VideoGeneration {
   id: string;
@@ -28,11 +29,16 @@ interface VideoGeneration {
   audio_enabled: boolean | null;
   mode: string | null;
   model_name: string | null;
+  negative_prompt: string | null;
   error_message: string | null;
   created_at: string;
 }
 
-const VideoHistory: React.FC = () => {
+interface VideoHistoryProps {
+  onUsePrompt?: (prompt: string, negativePrompt?: string) => void;
+}
+
+const VideoHistory: React.FC<VideoHistoryProps> = ({ onUsePrompt }) => {
   const [selectedVideo, setSelectedVideo] = useState<VideoGeneration | null>(null);
 
   const { data: history, isLoading, error } = useQuery({
@@ -42,7 +48,7 @@ const VideoHistory: React.FC = () => {
         .from('video_generations')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(24); // 4x6 grid = 24 items
+        .limit(24);
 
       if (error) throw error;
       return data as VideoGeneration[];
@@ -100,6 +106,13 @@ const VideoHistory: React.FC = () => {
     );
   }
 
+  const handleUsePrompt = (video: VideoGeneration) => {
+    if (onUsePrompt) {
+      onUsePrompt(video.prompt, video.negative_prompt || undefined);
+      setSelectedVideo(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
@@ -121,7 +134,14 @@ const VideoHistory: React.FC = () => {
       {/* Video Detail Dialog */}
       <Dialog open={!!selectedVideo} onOpenChange={(open) => !open && setSelectedVideo(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedVideo && <VideoDetailContent video={selectedVideo} onClose={() => setSelectedVideo(null)} />}
+          {selectedVideo && (
+            <VideoDetailContent 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)}
+              onUsePrompt={() => handleUsePrompt(selectedVideo)}
+              showUsePrompt={!!onUsePrompt}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -199,9 +219,13 @@ const ThumbnailItem: React.FC<ThumbnailItemProps> = ({ item, onClick }) => {
 interface VideoDetailContentProps {
   video: VideoGeneration;
   onClose: () => void;
+  onUsePrompt: () => void;
+  showUsePrompt: boolean;
 }
 
-const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video }) => {
+const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video, onUsePrompt, showUsePrompt }) => {
+  const { toast } = useToast();
+
   const statusConfig = {
     completed: { label: 'Selesai', variant: 'default' as const, icon: Play },
     pending: { label: 'Sedang Diproses', variant: 'secondary' as const, icon: Loader2 },
@@ -210,6 +234,22 @@ const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video }) => {
 
   const status = statusConfig[video.status as keyof typeof statusConfig] || statusConfig.pending;
   const StatusIcon = status.icon;
+
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(video.prompt);
+      toast({
+        title: 'Prompt disalin!',
+        description: 'Prompt berhasil disalin ke clipboard',
+      });
+    } catch {
+      toast({
+        title: 'Gagal menyalin',
+        description: 'Tidak dapat menyalin ke clipboard',
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <>
@@ -223,10 +263,53 @@ const VideoDetailContent: React.FC<VideoDetailContentProps> = ({ video }) => {
             {format(new Date(video.created_at), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
           </span>
         </DialogTitle>
-        <DialogDescription className="text-left">
-          {video.prompt}
+        <DialogDescription className="text-left space-y-2">
+          <div className="bg-muted/50 rounded-lg p-3 relative group">
+            <p className="pr-16">{video.prompt}</p>
+            <div className="absolute top-2 right-2 flex gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleCopyPrompt}
+                title="Salin prompt"
+              >
+                <Copy size={14} />
+              </Button>
+              {showUsePrompt && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={onUsePrompt}
+                  title="Gunakan prompt ini"
+                >
+                  <RotateCcw size={14} />
+                </Button>
+              )}
+            </div>
+          </div>
+          {video.negative_prompt && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Negative:</span> {video.negative_prompt}
+            </div>
+          )}
         </DialogDescription>
       </DialogHeader>
+
+      {/* Prompt action buttons - always visible */}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleCopyPrompt} className="flex-1">
+          <Copy size={14} className="mr-2" />
+          Copy Prompt
+        </Button>
+        {showUsePrompt && (
+          <Button variant="outline" size="sm" onClick={onUsePrompt} className="flex-1">
+            <RotateCcw size={14} className="mr-2" />
+            Gunakan Prompt
+          </Button>
+        )}
+      </div>
 
       {/* Video preview */}
       {video.status === 'completed' && video.output_url && (
