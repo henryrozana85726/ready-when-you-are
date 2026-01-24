@@ -95,6 +95,17 @@ serve(async (req) => {
       );
     }
 
+    // Lookup the video model from database to get the actual UUID
+    const { data: videoModel, error: modelError } = await supabase
+      .from('video_models')
+      .select('id, name')
+      .eq('name', modelName)
+      .eq('server', server)
+      .single();
+    
+    const actualModelId = videoModel?.id || null;
+    console.log(`[generate-video] Model lookup: ${modelName} -> ${actualModelId}`);
+
     // Get an active API key for this provider
     const { data: apiKeys, error: apiKeyError } = await supabase
       .from('api_keys')
@@ -156,7 +167,7 @@ serve(async (req) => {
       // Save failed generation to history
       await supabase.from('video_generations').insert({
         user_id: user.id,
-        model_id: modelId,
+        model_id: actualModelId,
         api_key_id: apiKeyRecord.id,
         prompt,
         negative_prompt: negativePrompt,
@@ -217,7 +228,7 @@ serve(async (req) => {
       .from('video_generations')
       .insert({
         user_id: user.id,
-        model_id: modelId,
+        model_id: actualModelId,
         api_key_id: apiKeyRecord.id,
         prompt,
         negative_prompt: negativePrompt,
@@ -325,9 +336,7 @@ async function generateWithFalAI(params: FalAIParams): Promise<{ videoUrl?: stri
   } else if (modelName === 'kling-v2.6') {
     requestBody.duration = duration === 5 ? '5' : '10';
     requestBody.aspect_ratio = aspectRatio;
-    if (audioEnabled) {
-      requestBody.with_audio = true;
-    }
+    requestBody.with_audio = audioEnabled; // Explicitly set to true or false
   }
 
   // Add negative prompt if provided
