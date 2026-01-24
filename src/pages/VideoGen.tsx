@@ -173,8 +173,8 @@ const VideoGen: React.FC = () => {
         {/* Server Tabs */}
         <Tabs value={server} onValueChange={handleServerChange}>
           <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="server1">fal.ai</TabsTrigger>
-            <TabsTrigger value="server2">GMI Cloud</TabsTrigger>
+            <TabsTrigger value="server1">Server 1</TabsTrigger>
+            <TabsTrigger value="server2">Server 2</TabsTrigger>
           </TabsList>
         </Tabs>
 

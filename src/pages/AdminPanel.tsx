@@ -56,21 +56,24 @@ const AdminDashboard: React.FC = () => {
     queryFn: async () => {
       const [usersRes, apiKeysRes, modelsRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('api_keys').select('id, credits, is_active'),
+        supabase.from('api_keys').select('id, credits, is_active, provider'),
         supabase.from('video_models').select('id'),
       ]);
 
       const activeKeys = apiKeysRes.data?.filter((k) => k.is_active) || [];
-      const totalApiCredits = apiKeysRes.data?.reduce(
-        (sum, k) => sum + Number(k.credits),
-        0
-      ) || 0;
+      const server1Credits = apiKeysRes.data
+        ?.filter((k) => k.provider === 'fal_ai')
+        .reduce((sum, k) => sum + Number(k.credits), 0) || 0;
+      const server2Credits = apiKeysRes.data
+        ?.filter((k) => k.provider === 'gmicloud')
+        .reduce((sum, k) => sum + Number(k.credits), 0) || 0;
 
       return {
         totalUsers: usersRes.count || 0,
         totalApiKeys: apiKeysRes.data?.length || 0,
         activeApiKeys: activeKeys.length,
-        totalApiCredits,
+        server1Credits,
+        server2Credits,
         totalModels: modelsRes.data?.length || 0,
       };
     },
@@ -87,7 +90,8 @@ const AdminDashboard: React.FC = () => {
   const statCards = [
     { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users },
     { label: 'API Keys', value: `${stats?.activeApiKeys}/${stats?.totalApiKeys}`, icon: Key },
-    { label: 'Total API Credits', value: stats?.totalApiCredits?.toLocaleString() || '0', icon: Coins },
+    { label: 'Server 1 Credits', value: stats?.server1Credits?.toLocaleString() || '0', icon: Coins },
+    { label: 'Server 2 Credits', value: stats?.server2Credits?.toLocaleString() || '0', icon: Coins },
     { label: 'Video Models', value: stats?.totalModels || 0, icon: Film },
   ];
 
