@@ -250,7 +250,8 @@ export type Database = {
           id: string
           input_media_ids: string[] | null
           mode: string | null
-          model_id: string
+          model_id: string | null
+          model_name: string | null
           negative_prompt: string | null
           output_url: string | null
           prompt: string
@@ -270,7 +271,8 @@ export type Database = {
           id?: string
           input_media_ids?: string[] | null
           mode?: string | null
-          model_id: string
+          model_id?: string | null
+          model_name?: string | null
           negative_prompt?: string | null
           output_url?: string | null
           prompt: string
@@ -290,7 +292,8 @@ export type Database = {
           id?: string
           input_media_ids?: string[] | null
           mode?: string | null
-          model_id?: string
+          model_id?: string | null
+          model_name?: string | null
           negative_prompt?: string | null
           output_url?: string | null
           prompt?: string

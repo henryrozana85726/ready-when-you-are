@@ -168,6 +168,7 @@ serve(async (req) => {
       await supabase.from('video_generations').insert({
         user_id: user.id,
         model_id: actualModelId,
+        model_name: modelName,
         api_key_id: apiKeyRecord.id,
         prompt,
         negative_prompt: negativePrompt,
@@ -229,6 +230,7 @@ serve(async (req) => {
       .insert({
         user_id: user.id,
         model_id: actualModelId,
+        model_name: modelName,
         api_key_id: apiKeyRecord.id,
         prompt,
         negative_prompt: negativePrompt,
