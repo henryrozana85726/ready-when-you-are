@@ -95,6 +95,63 @@ export type Database = {
           },
         ]
       }
+      image_generations: {
+        Row: {
+          api_key_id: string | null
+          aspect_ratio: string | null
+          created_at: string
+          credits_used: number
+          error_message: string | null
+          id: string
+          model_id: string | null
+          model_name: string | null
+          output_format: string | null
+          output_url: string | null
+          prompt: string
+          resolution: string | null
+          server: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_id?: string | null
+          aspect_ratio?: string | null
+          created_at?: string
+          credits_used?: number
+          error_message?: string | null
+          id?: string
+          model_id?: string | null
+          model_name?: string | null
+          output_format?: string | null
+          output_url?: string | null
+          prompt: string
+          resolution?: string | null
+          server?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_id?: string | null
+          aspect_ratio?: string | null
+          created_at?: string
+          credits_used?: number
+          error_message?: string | null
+          id?: string
+          model_id?: string | null
+          model_name?: string | null
+          output_format?: string | null
+          output_url?: string | null
+          prompt?: string
+          resolution?: string | null
+          server?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       media_uploads: {
         Row: {
           created_at: string

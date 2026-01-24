@@ -99,6 +99,29 @@ serve(async (req) => {
       );
     }
 
+    // Create image generation record
+    const { data: generationRecord, error: insertError } = await supabase
+      .from('image_generations')
+      .insert({
+        user_id: user.id,
+        api_key_id: apiKeyData.id,
+        prompt,
+        aspect_ratio: aspectRatio,
+        resolution,
+        output_format: outputFormat,
+        model_id: modelId,
+        model_name: modelName,
+        server,
+        status: 'pending',
+        credits_used: creditsToUse,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Failed to create generation record:", insertError);
+    }
+
     let imageUrl: string | undefined;
     let generationError: string | undefined;
 
@@ -131,10 +154,33 @@ serve(async (req) => {
 
     if (generationError || !imageUrl) {
       console.error("Generation failed:", generationError);
+      
+      // Update generation record with error
+      if (generationRecord?.id) {
+        await supabase
+          .from('image_generations')
+          .update({ 
+            status: 'failed', 
+            error_message: generationError || 'Failed to generate image' 
+          })
+          .eq('id', generationRecord.id);
+      }
+      
       return new Response(
         JSON.stringify({ error: generationError || "Failed to generate image" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Update generation record with success
+    if (generationRecord?.id) {
+      await supabase
+        .from('image_generations')
+        .update({ 
+          status: 'completed', 
+          output_url: imageUrl 
+        })
+        .eq('id', generationRecord.id);
     }
 
     // Deduct credits from user

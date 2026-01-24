@@ -19,12 +19,15 @@ import {
   calculateImagePrice,
 } from '@/config/imageModels';
 import { supabase } from '@/integrations/supabase/client';
+import ImageHistory from '@/components/ImageHistory';
+import { useQueryClient } from '@tanstack/react-query';
 
 type GenerationType = 'text-to-image' | 'image-to-image';
 
 const ImageGen: React.FC = () => {
   const { credits, refreshCredits } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // State
   const [server, setServer] = useState<'server1' | 'server2'>('server1');
@@ -205,8 +208,9 @@ const ImageGen: React.FC = () => {
         setResultImage(data.imageUrl);
         setStatus(GenerationStatus.SUCCESS);
         
-        // Refresh user credits after successful generation
+        // Refresh user credits and history after successful generation
         await refreshCredits();
+        queryClient.invalidateQueries({ queryKey: ['image-history'] });
         
         toast({
           title: 'Gambar berhasil dibuat!',
@@ -411,12 +415,9 @@ const ImageGen: React.FC = () => {
       </div>
 
       {/* Preview Area */}
-      <div className="bg-muted rounded-xl border border-border p-4 flex items-center justify-center relative overflow-hidden group min-h-[400px]">
+      <div className="bg-muted rounded-xl border border-border p-4 flex flex-col relative overflow-hidden min-h-[400px]">
         {status === GenerationStatus.IDLE && (
-          <div className="text-center text-muted-foreground">
-            <ImagePlaceholder />
-            <p className="mt-4">Pilih model dan masukkan prompt untuk generate gambar</p>
-          </div>
+          <ImageHistory onUsePrompt={(p) => setPrompt(p)} />
         )}
 
         {status === GenerationStatus.LOADING && (
@@ -440,7 +441,7 @@ const ImageGen: React.FC = () => {
         )}
 
         {status === GenerationStatus.SUCCESS && resultImage && (
-          <div className="relative w-full h-full flex items-center justify-center">
+          <div className="relative w-full h-full flex items-center justify-center flex-1 group">
             <img
               src={resultImage}
               alt={prompt}
@@ -455,9 +456,9 @@ const ImageGen: React.FC = () => {
                 <Download size={20} />
               </a>
               <button
-                onClick={handleGenerate}
+                onClick={() => setStatus(GenerationStatus.IDLE)}
                 className="p-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg backdrop-blur-sm transition-colors"
-                title="Regenerate"
+                title="View History"
               >
                 <RefreshCcw size={20} />
               </button>
