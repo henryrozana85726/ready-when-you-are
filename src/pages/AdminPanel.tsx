@@ -917,8 +917,8 @@ const VouchersManagement: React.FC = () => {
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
-  const [formData, setFormData] = useState<{ code: string; credits: number; expiresAt: Date | undefined }>({ code: '', credits: 5, expiresAt: undefined });
-  const [bulkFormData, setBulkFormData] = useState({ prefix: '', count: 5, credits: 5, expiresAt: undefined as Date | undefined });
+  const [formData, setFormData] = useState<{ code: string; credits: number; maxRedemptions: number; expiresAt: Date | undefined }>({ code: '', credits: 5, maxRedemptions: 1, expiresAt: undefined });
+  const [bulkFormData, setBulkFormData] = useState({ prefix: '', count: 5, credits: 5, maxRedemptions: 1, expiresAt: undefined as Date | undefined });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'redeemed' | 'expired' | 'blocked'>('all');
   const { toast } = useToast();
@@ -959,10 +959,11 @@ const VouchersManagement: React.FC = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { code: string; credits: number; expiresAt: Date | undefined }) => {
+    mutationFn: async (data: { code: string; credits: number; maxRedemptions: number; expiresAt: Date | undefined }) => {
       const { error } = await supabase.from('vouchers').insert([{
         code: data.code,
         credits: data.credits,
+        max_redemptions: data.maxRedemptions,
         expires_at: data.expiresAt?.toISOString() || null,
       }]);
       if (error) throw error;
@@ -971,7 +972,7 @@ const VouchersManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: 'Voucher created successfully' });
       setIsDialogOpen(false);
-      setFormData({ code: '', credits: 5, expiresAt: undefined });
+      setFormData({ code: '', credits: 5, maxRedemptions: 1, expiresAt: undefined });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -979,7 +980,7 @@ const VouchersManagement: React.FC = () => {
   });
 
   const bulkCreateMutation = useMutation({
-    mutationFn: async (data: { prefix: string; count: number; credits: number; expiresAt: Date | undefined }) => {
+    mutationFn: async (data: { prefix: string; count: number; credits: number; maxRedemptions: number; expiresAt: Date | undefined }) => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
       const vouchers = [];
       for (let i = 0; i < data.count; i++) {
@@ -990,6 +991,7 @@ const VouchersManagement: React.FC = () => {
         vouchers.push({
           code: data.prefix ? `${data.prefix}-${suffix}` : suffix,
           credits: data.credits,
+          max_redemptions: data.maxRedemptions,
           expires_at: data.expiresAt?.toISOString() || null,
         });
       }
@@ -1000,7 +1002,7 @@ const VouchersManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast({ title: 'Vouchers created successfully' });
       setIsBulkDialogOpen(false);
-      setBulkFormData({ prefix: '', count: 5, credits: 5, expiresAt: undefined });
+      setBulkFormData({ prefix: '', count: 5, credits: 5, maxRedemptions: 1, expiresAt: undefined });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -1043,6 +1045,7 @@ const VouchersManagement: React.FC = () => {
         .from('vouchers')
         .update({ 
           status: 'active',
+          current_redemptions: 0,
           redeemed_by: null,
           redeemed_at: null
         })
@@ -1169,6 +1172,20 @@ const VouchersManagement: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="bulkMaxRedemptions">Max Redemptions (per voucher)</Label>
+                  <Input
+                    id="bulkMaxRedemptions"
+                    type="number"
+                    min="1"
+                    value={bulkFormData.maxRedemptions}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, maxRedemptions: parseInt(e.target.value) || 1 })}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    How many times each voucher can be redeemed by different users.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>Expiration Date (Optional)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1249,6 +1266,20 @@ const VouchersManagement: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxRedemptions">Max Redemptions</Label>
+                  <Input
+                    id="maxRedemptions"
+                    type="number"
+                    min="1"
+                    value={formData.maxRedemptions}
+                    onChange={(e) => setFormData({ ...formData, maxRedemptions: parseInt(e.target.value) || 1 })}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    How many times this voucher can be redeemed by different users.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Expiration Date (Optional)</Label>
@@ -1339,9 +1370,10 @@ const VouchersManagement: React.FC = () => {
               <TableRow>
                 <TableHead>Code</TableHead>
                 <TableHead>Credits</TableHead>
+                <TableHead>Redemptions</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Expires</TableHead>
-                <TableHead>Redeemed</TableHead>
+                <TableHead>Last Redeemed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1366,6 +1398,15 @@ const VouchersManagement: React.FC = () => {
                         <Coins size={14} className="text-primary" />
                         <span>{voucher.credits.toLocaleString()}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`font-mono text-sm ${
+                        voucher.current_redemptions >= voucher.max_redemptions 
+                          ? 'text-muted-foreground' 
+                          : 'text-foreground'
+                      }`}>
+                        {voucher.current_redemptions || 0}/{voucher.max_redemptions || 1}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -1448,7 +1489,7 @@ const VouchersManagement: React.FC = () => {
               })}
               {filteredVouchers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {vouchers?.length === 0 ? 'No vouchers found. Create one to get started.' : 'No vouchers match your search criteria.'}
                   </TableCell>
                 </TableRow>
