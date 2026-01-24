@@ -16,6 +16,7 @@ interface VideoRequest {
   images?: string[]; // base64 encoded images
   modelId: string;
   server: 'server1' | 'server2';
+  creditsToUse: number; // credits calculated by frontend
 }
 
 // Map server to provider name in database
@@ -64,7 +65,7 @@ serve(async (req) => {
     }
 
     const body: VideoRequest = await req.json();
-    const { prompt, negativePrompt, aspectRatio = '16:9', duration = 8, resolution = '1080p', audioEnabled = false, images = [], modelId, server } = body;
+    const { prompt, negativePrompt, aspectRatio = '16:9', duration = 8, resolution = '1080p', audioEnabled = false, images = [], modelId, server, creditsToUse = 0 } = body;
 
     if (!prompt) {
       return new Response(
@@ -143,8 +144,30 @@ serve(async (req) => {
       );
     }
 
+    // Determine mode for video_generations table
+    const mode = generationType === 'text-to-video' ? 'text-to-video' : 
+                 generationType === 'image-to-video' ? 'image-to-video' : 'first-last-frame';
+
     if (result.error) {
       console.error("[generate-video] Generation error:", result.error);
+      
+      // Save failed generation to history
+      await supabase.from('video_generations').insert({
+        user_id: user.id,
+        model_id: modelId,
+        api_key_id: apiKeyRecord.id,
+        prompt,
+        negative_prompt: negativePrompt,
+        aspect_ratio: aspectRatio,
+        duration_seconds: duration,
+        resolution,
+        audio_enabled: audioEnabled,
+        mode,
+        credits_used: 0,
+        status: 'failed',
+        error_message: result.error,
+      });
+
       return new Response(
         JSON.stringify({ error: result.error }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -153,10 +176,83 @@ serve(async (req) => {
 
     console.log("[generate-video] Generation successful:", result.videoUrl);
 
+    // Deduct credits from API key
+    const newApiKeyCredits = apiKeyRecord.credits - creditsToUse;
+    const { error: updateApiKeyError } = await supabase
+      .from('api_keys')
+      .update({ credits: newApiKeyCredits, updated_at: new Date().toISOString() })
+      .eq('id', apiKeyRecord.id);
+
+    if (updateApiKeyError) {
+      console.error("[generate-video] Failed to update API key credits:", updateApiKeyError);
+    } else {
+      console.log(`[generate-video] Deducted ${creditsToUse} credits from API key ${apiKeyRecord.id}. New balance: ${newApiKeyCredits}`);
+    }
+
+    // Deduct credits from user balance
+    const { data: userCredits } = await supabase
+      .from('user_credits')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single();
+
+    if (userCredits) {
+      const newUserBalance = userCredits.balance - creditsToUse;
+      const { error: updateUserCreditsError } = await supabase
+        .from('user_credits')
+        .update({ balance: newUserBalance, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateUserCreditsError) {
+        console.error("[generate-video] Failed to update user credits:", updateUserCreditsError);
+      } else {
+        console.log(`[generate-video] Deducted ${creditsToUse} credits from user ${user.id}. New balance: ${newUserBalance}`);
+      }
+    }
+
+    // Save successful generation to video_generations
+    const { data: videoGeneration, error: insertError } = await supabase
+      .from('video_generations')
+      .insert({
+        user_id: user.id,
+        model_id: modelId,
+        api_key_id: apiKeyRecord.id,
+        prompt,
+        negative_prompt: negativePrompt,
+        aspect_ratio: aspectRatio,
+        duration_seconds: duration,
+        resolution,
+        audio_enabled: audioEnabled,
+        mode,
+        credits_used: creditsToUse,
+        status: 'completed',
+        output_url: result.videoUrl,
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error("[generate-video] Failed to save video generation:", insertError);
+    } else {
+      console.log("[generate-video] Saved video generation:", videoGeneration?.id);
+
+      // Record credit transaction
+      await supabase.from('credit_transactions').insert({
+        user_id: user.id,
+        api_key_id: apiKeyRecord.id,
+        video_generation_id: videoGeneration?.id,
+        amount: -creditsToUse,
+        transaction_type: 'generation',
+        description: `Video generation: ${mode} - ${duration}s ${resolution}${audioEnabled ? ' with audio' : ''}`,
+      });
+    }
+
     return new Response(
       JSON.stringify({ 
         videoUrl: result.videoUrl,
         generationType,
+        creditsUsed: creditsToUse,
+        generationId: videoGeneration?.id,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
