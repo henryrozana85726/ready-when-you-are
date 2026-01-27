@@ -12,10 +12,17 @@ import ImageGen from "./pages/ImageGen";
 import VideoGen from "./pages/VideoGen";
 import TextToSpeech from "./pages/TextToSpeech";
 import ImageUpscaler from "./pages/ImageUpscaler";
-import Tools from "./pages/Tools";
 import Account from "./pages/Account";
 import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
+
+// Tools pages
+import ToolsIndex from "./pages/tools/ToolsIndex";
+import VeoLauncher from "./pages/tools/VeoLauncher";
+import AffiliateEditor from "./pages/tools/AffiliateEditor";
+import ImageConverter from "./pages/tools/ImageConverter";
+import ToolsTextToSpeech from "./pages/tools/ToolsTextToSpeech";
+import ImageVideoToPrompt from "./pages/tools/ImageVideoToPrompt";
 
 const queryClient = new QueryClient();
 
@@ -76,12 +83,63 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Tools Routes */}
             <Route
               path="/tools"
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <Tools />
+                    <ToolsIndex />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/veo-launcher"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <VeoLauncher />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/affiliate-editor"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AffiliateEditor />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/image-converter"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ImageConverter />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/text-to-speech"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ToolsTextToSpeech />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/image-video-to-prompt"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ImageVideoToPrompt />
                   </Layout>
                 </ProtectedRoute>
               }

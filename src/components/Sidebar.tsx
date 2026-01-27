@@ -1,12 +1,11 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Image as ImageIcon,
   Video,
   Volume2,
   ZoomIn,
-  MessageSquare,
   User,
   X,
   Sun,
@@ -15,10 +14,22 @@ import {
   LogOut,
   LogIn,
   Coins,
+  Wrench,
+  Rocket,
+  Link2,
+  FileImage,
+  ScanSearch,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -30,15 +41,26 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme }) => {
   const { user, role, credits, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const navItems = [
+  const [toolsOpen, setToolsOpen] = React.useState(
+    location.pathname.startsWith('/tools')
+  );
+
+  const mainNavItems = [
     { label: 'Home', path: '/', icon: LayoutDashboard },
     { label: 'Image Generation', path: '/image', icon: ImageIcon, requireAuth: true },
     { label: 'Video Generation', path: '/video', icon: Video, requireAuth: true },
     { label: 'Text to Speech', path: '/tts', icon: Volume2, requireAuth: true },
     { label: 'Image Upscaler', path: '/upscaler', icon: ZoomIn, requireAuth: true },
-    { label: 'AI Assistant', path: '/tools', icon: MessageSquare, requireAuth: true },
-    { label: 'Account', path: '/account', icon: User, requireAuth: true },
+  ];
+
+  const toolsItems = [
+    { label: 'Veo Launcher', path: '/tools/veo-launcher', icon: Rocket },
+    { label: 'Affiliate Editor', path: '/tools/affiliate-editor', icon: Link2 },
+    { label: 'Image Converter', path: '/tools/image-converter', icon: FileImage },
+    { label: 'Text to Speech', path: '/tools/text-to-speech', icon: Volume2 },
+    { label: 'Image/Video to Prompt', path: '/tools/image-video-to-prompt', icon: ScanSearch },
   ];
 
   const adminItems = [
@@ -51,9 +73,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
     onClose();
   };
 
-  const filteredNavItems = navItems.filter(
+  const filteredMainNavItems = mainNavItems.filter(
     (item) => !item.requireAuth || user
   );
+
+  const handleNavClick = () => {
+    if (window.innerWidth < 1024) onClose();
+  };
 
   return (
     <>
@@ -86,13 +112,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {filteredNavItems.map((item) => (
+          {/* Main Nav Items */}
+          {filteredMainNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              onClick={() => {
-                if (window.innerWidth < 1024) onClose();
-              }}
+              onClick={handleNavClick}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
@@ -107,6 +132,67 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
             </NavLink>
           ))}
 
+          {/* Tools Section (Collapsible) */}
+          {user && (
+            <Collapsible open={toolsOpen} onOpenChange={setToolsOpen}>
+              <CollapsibleTrigger className="w-full">
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                    location.pathname.startsWith('/tools')
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Wrench size={20} />
+                    <span className="font-medium">Tools</span>
+                  </div>
+                  {toolsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-4 mt-1 space-y-1">
+                {toolsItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleNavClick}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm",
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )
+                    }
+                  >
+                    <item.icon size={16} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* Account */}
+          {user && (
+            <NavLink
+              to="/account"
+              onClick={handleNavClick}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                  isActive
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )
+              }
+            >
+              <User size={20} />
+              <span className="font-medium">Account</span>
+            </NavLink>
+          )}
+
           {/* Admin section */}
           {role === 'admin' && (
             <div className="pt-4 border-t border-border mt-4">
@@ -117,9 +203,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  onClick={() => {
-                    if (window.innerWidth < 1024) onClose();
-                  }}
+                  onClick={handleNavClick}
                   className={({ isActive }) =>
                     cn(
                       "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
