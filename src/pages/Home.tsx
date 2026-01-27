@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Image as ImageIcon, Video, Volume2, ZoomIn, MessageSquare, ArrowRight, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Video, Volume2, ZoomIn, Wrench, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const features = [
@@ -37,9 +37,9 @@ const features = [
     gradientClass: 'from-info/20 to-info/5',
   },
   {
-    title: 'AI Assistant',
-    description: 'Smart utilities for text analysis, chat, and creative writing.',
-    icon: MessageSquare,
+    title: 'Tools',
+    description: 'Utility tools including Veo Launcher, Affiliate Editor, and more.',
+    icon: Wrench,
     path: '/tools',
     iconColor: 'text-success',
     gradientClass: 'from-success/20 to-success/5',
