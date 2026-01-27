@@ -1,11 +1,20 @@
 import React, { useState, useCallback } from 'react';
-import { ZoomIn, Upload, Download, Loader2, X, Image as ImageIcon } from 'lucide-react';
+import { ZoomIn, Upload, Download, Loader2, X, Image as ImageIcon, Coins, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/hooks/useAuth';
 
 const ImageUpscaler: React.FC = () => {
+  const { credits } = useAuth();
+  const [server, setServer] = useState<'server1' | 'server2'>('server1');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
@@ -16,6 +25,8 @@ const ImageUpscaler: React.FC = () => {
     { value: '2', label: '2x Upscale' },
     { value: '4', label: '4x Upscale' },
   ];
+
+  const currentPrice = scale === '4' ? 2 : 1; // Placeholder price
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,42 +65,54 @@ const ImageUpscaler: React.FC = () => {
     setUpscaledImage(null);
   };
 
-  const handleUpscale = async () => {
+  const handleUpscale = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!selectedImage) return;
     
     setIsProcessing(true);
     // TODO: Implement image upscaling
     setTimeout(() => {
       setIsProcessing(false);
-      // Placeholder for upscaled image
     }, 3000);
   };
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground flex items-center justify-center gap-3">
-          <ZoomIn className="text-primary" size={32} />
-          Image Upscaler
-        </h1>
-        <p className="text-muted-foreground">
-          Enhance and upscale your images using AI-powered technology
-        </p>
-      </div>
+  const handleServerChange = (newServer: string) => {
+    setServer(newServer as 'server1' | 'server2');
+  };
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Input Section */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Original Image</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+  return (
+    <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
+      {/* Controls */}
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground mb-2">Image Upscaler</h2>
+          <p className="text-muted-foreground">Enhance and upscale your images with AI.</p>
+        </div>
+
+        {/* Credits Badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted border border-border rounded-lg w-fit">
+          <Coins size={16} className="text-primary" />
+          <span className="text-sm text-muted-foreground">Credits:</span>
+          <span className="font-bold text-foreground">{credits.toLocaleString()}</span>
+        </div>
+
+        {/* Server Tabs */}
+        <Tabs value={server} onValueChange={handleServerChange}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="server1">Server 1</TabsTrigger>
+            <TabsTrigger value="server2">Server 2</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <form onSubmit={handleUpscale} className="flex flex-col gap-4 flex-1">
+          {/* Image Upload */}
+          <div className="space-y-2">
+            <Label>Upload Image</Label>
             {!selectedImage ? (
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className="flex flex-col items-center justify-center min-h-[300px] bg-muted/50 rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
+                className="flex flex-col items-center justify-center h-48 bg-muted rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
               >
                 <input
                   type="file"
@@ -98,10 +121,10 @@ const ImageUpscaler: React.FC = () => {
                   className="hidden"
                   id="image-upload"
                 />
-                <label htmlFor="image-upload" className="cursor-pointer text-center">
-                  <Upload size={48} className="mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-2">
-                    Drag and drop an image here, or click to select
+                <label htmlFor="image-upload" className="cursor-pointer text-center p-4">
+                  <Upload size={32} className="mx-auto mb-3 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-1">
+                    Drag and drop or click to select
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Supports: JPG, PNG, WebP (Max 10MB)
@@ -113,15 +136,16 @@ const ImageUpscaler: React.FC = () => {
                 <img
                   src={selectedImage}
                   alt="Selected"
-                  className="w-full h-auto rounded-lg border border-border"
+                  className="w-full h-48 object-contain rounded-lg border border-border bg-background"
                 />
                 <Button
+                  type="button"
                   variant="destructive"
                   size="icon"
-                  className="absolute top-2 right-2"
+                  className="absolute top-2 right-2 h-8 w-8"
                   onClick={clearImage}
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </Button>
                 {selectedFile && (
                   <p className="mt-2 text-sm text-muted-foreground truncate">
@@ -130,90 +154,84 @@ const ImageUpscaler: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
 
-            <div className="space-y-2">
-              <Label>Upscale Factor</Label>
-              <Select value={scale} onValueChange={setScale}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select scale" />
-                </SelectTrigger>
-                <SelectContent>
-                  {scales.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Upscale Factor */}
+          <div className="space-y-2">
+            <Label>Upscale Factor</Label>
+            <Select value={scale} onValueChange={setScale}>
+              <SelectTrigger className="bg-muted border-border">
+                <SelectValue placeholder="Pilih scale..." />
+              </SelectTrigger>
+              <SelectContent>
+                {scales.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <Button 
-              onClick={handleUpscale} 
-              disabled={!selectedImage || isProcessing}
-              className="w-full gradient-brand text-primary-foreground"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <ZoomIn className="mr-2 h-4 w-4" />
-                  Upscale Image
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Price Info */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Info size={14} />
+            <span>Estimasi biaya:</span>
+            <span className="font-bold text-primary">{currentPrice.toLocaleString()} kredit</span>
+          </div>
 
-        {/* Output Section */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Upscaled Result</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col items-center justify-center min-h-[300px] bg-muted/50 rounded-lg border border-border">
-              {upscaledImage ? (
-                <div className="w-full">
-                  <img
-                    src={upscaledImage}
-                    alt="Upscaled"
-                    className="w-full h-auto rounded-lg"
-                  />
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <ImageIcon size={48} className="mx-auto mb-2 opacity-50" />
-                  <p>Upscaled image will appear here</p>
-                </div>
-              )}
-            </div>
+          <Button
+            type="submit"
+            disabled={!selectedImage || isProcessing}
+            size="lg"
+            className="mt-auto w-full gap-2 gradient-brand text-primary-foreground hover:opacity-90"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="animate-spin" /> Processing...
+              </>
+            ) : (
+              <>
+                <ZoomIn size={18} /> Upscale Image
+              </>
+            )}
+          </Button>
+        </form>
+      </div>
 
-            {upscaledImage && (
+      {/* Preview Area */}
+      <div className="bg-muted rounded-xl border border-border p-6 flex flex-col relative overflow-hidden min-h-[400px]">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Result</h3>
+        
+        <div className="flex-1 flex flex-col items-center justify-center">
+          {upscaledImage ? (
+            <div className="w-full space-y-4">
+              <img
+                src={upscaledImage}
+                alt="Upscaled"
+                className="w-full h-auto rounded-lg border border-border"
+              />
               <Button variant="outline" className="w-full gap-2">
                 <Download size={16} />
                 Download Upscaled Image
               </Button>
-            )}
-
-            <div className="text-xs text-muted-foreground">
-              <p>• AI-powered image enhancement</p>
-              <p>• Preserves details and sharpness</p>
-              <p>• Output format: PNG</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
+              <p className="text-lg mb-2">Upscaled image will appear here</p>
+              <p className="text-sm">Upload an image and click Upscale Image</p>
+            </div>
+          )}
+        </div>
 
-      {/* Coming Soon Notice */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="py-4">
+        {/* Coming Soon Notice */}
+        <div className="mt-auto pt-4 border-t border-border">
           <p className="text-center text-sm text-muted-foreground">
             🚀 Image Upscaler feature is coming soon! Stay tuned for updates.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

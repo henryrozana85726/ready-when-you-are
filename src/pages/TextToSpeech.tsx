@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
-import { Volume2, Play, Pause, Download, Loader2 } from 'lucide-react';
+import { Volume2, Play, Pause, Download, Loader2, Coins, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/hooks/useAuth';
 
 const TextToSpeech: React.FC = () => {
+  const { credits } = useAuth();
+  const [server, setServer] = useState<'server1' | 'server2'>('server1');
   const [text, setText] = useState('');
   const [voice, setVoice] = useState('alloy');
   const [speed, setSpeed] = useState([1.0]);
@@ -24,14 +33,16 @@ const TextToSpeech: React.FC = () => {
     { id: 'shimmer', name: 'Shimmer' },
   ];
 
-  const handleGenerate = async () => {
+  const currentPrice = 0.5; // Placeholder price
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!text.trim()) return;
     
     setIsGenerating(true);
     // TODO: Implement TTS generation
     setTimeout(() => {
       setIsGenerating(false);
-      // Placeholder for audio URL
     }, 2000);
   };
 
@@ -39,132 +50,145 @@ const TextToSpeech: React.FC = () => {
     setIsPlaying(!isPlaying);
   };
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground flex items-center justify-center gap-3">
-          <Volume2 className="text-primary" size={32} />
-          Text to Speech
-        </h1>
-        <p className="text-muted-foreground">
-          Convert your text into natural-sounding speech using AI
-        </p>
-      </div>
+  const handleServerChange = (newServer: string) => {
+    setServer(newServer as 'server1' | 'server2');
+  };
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Input Section */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Input Text</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+  return (
+    <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr,1.5fr] gap-8 min-h-[calc(100vh-8rem)]">
+      {/* Controls */}
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground mb-2">Text to Speech</h2>
+          <p className="text-muted-foreground">Convert text into natural-sounding speech.</p>
+        </div>
+
+        {/* Credits Badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted border border-border rounded-lg w-fit">
+          <Coins size={16} className="text-primary" />
+          <span className="text-sm text-muted-foreground">Credits:</span>
+          <span className="font-bold text-foreground">{credits.toLocaleString()}</span>
+        </div>
+
+        {/* Server Tabs */}
+        <Tabs value={server} onValueChange={handleServerChange}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="server1">Server 1</TabsTrigger>
+            <TabsTrigger value="server2">Server 2</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <form onSubmit={handleGenerate} className="flex flex-col gap-4 flex-1">
+          {/* Text Input */}
+          <div className="space-y-2">
+            <Label htmlFor="text">Text</Label>
             <Textarea
-              placeholder="Enter the text you want to convert to speech..."
+              id="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              className="min-h-[200px] resize-none"
+              placeholder="Enter the text you want to convert to speech..."
+              className="h-40 bg-muted border-border resize-none"
+              required
             />
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Voice</Label>
-                <Select value={voice} onValueChange={setVoice}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {voices.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <p className="text-xs text-muted-foreground">
+              {text.length}/4,096 karakter
+            </p>
+          </div>
 
-              <div className="space-y-2">
-                <Label>Speed: {speed[0].toFixed(1)}x</Label>
-                <Slider
-                  value={speed}
-                  onValueChange={setSpeed}
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  className="w-full"
-                />
-              </div>
-            </div>
+          {/* Voice Selection */}
+          <div className="space-y-2">
+            <Label>Voice</Label>
+            <Select value={voice} onValueChange={setVoice}>
+              <SelectTrigger className="bg-muted border-border">
+                <SelectValue placeholder="Pilih voice..." />
+              </SelectTrigger>
+              <SelectContent>
+                {voices.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <Button 
-              onClick={handleGenerate} 
-              disabled={!text.trim() || isGenerating}
-              className="w-full gradient-brand text-primary-foreground"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Volume2 className="mr-2 h-4 w-4" />
-                  Generate Speech
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Speed Slider */}
+          <div className="space-y-2">
+            <Label>Speed: {speed[0].toFixed(1)}x</Label>
+            <Slider
+              value={speed}
+              onValueChange={setSpeed}
+              min={0.5}
+              max={2.0}
+              step={0.1}
+              className="w-full"
+            />
+          </div>
 
-        {/* Output Section */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Output</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col items-center justify-center min-h-[200px] bg-muted/50 rounded-lg border border-border">
-              {audioUrl ? (
-                <div className="space-y-4 w-full p-4">
-                  <div className="flex items-center justify-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePlayPause}
-                      className="h-12 w-12 rounded-full"
-                    >
-                      {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                    </Button>
-                  </div>
-                  <Button variant="outline" className="w-full gap-2">
-                    <Download size={16} />
-                    Download Audio
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <Volume2 size={48} className="mx-auto mb-2 opacity-50" />
-                  <p>Generated audio will appear here</p>
-                </div>
-              )}
-            </div>
+          {/* Price Info */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Info size={14} />
+            <span>Estimasi biaya:</span>
+            <span className="font-bold text-primary">{currentPrice.toLocaleString()} kredit</span>
+          </div>
 
-            <div className="text-xs text-muted-foreground">
-              <p>• Maximum 4,096 characters per request</p>
-              <p>• Supports multiple languages</p>
-              <p>• Output format: MP3</p>
-            </div>
-          </CardContent>
-        </Card>
+          <Button
+            type="submit"
+            disabled={isGenerating || !text.trim()}
+            size="lg"
+            className="mt-auto w-full gap-2 gradient-brand text-primary-foreground hover:opacity-90"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="animate-spin" /> Generating...
+              </>
+            ) : (
+              <>
+                <Volume2 size={18} /> Generate Speech
+              </>
+            )}
+          </Button>
+        </form>
       </div>
 
-      {/* Coming Soon Notice */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="py-4">
+      {/* Preview Area */}
+      <div className="bg-muted rounded-xl border border-border p-6 flex flex-col relative overflow-hidden min-h-[400px]">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Output</h3>
+        
+        <div className="flex-1 flex flex-col items-center justify-center">
+          {audioUrl ? (
+            <div className="space-y-6 w-full max-w-md">
+              <div className="flex items-center justify-center gap-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePlayPause}
+                  className="h-16 w-16 rounded-full border-2"
+                >
+                  {isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                </Button>
+              </div>
+              <Button variant="outline" className="w-full gap-2">
+                <Download size={16} />
+                Download Audio
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              <Volume2 size={64} className="mx-auto mb-4 opacity-30" />
+              <p className="text-lg mb-2">Generated audio will appear here</p>
+              <p className="text-sm">Enter text and click Generate Speech</p>
+            </div>
+          )}
+        </div>
+
+        {/* Coming Soon Notice */}
+        <div className="mt-auto pt-4 border-t border-border">
           <p className="text-center text-sm text-muted-foreground">
             🚀 Text to Speech feature is coming soon! Stay tuned for updates.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
