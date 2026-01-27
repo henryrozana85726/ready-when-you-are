@@ -10,6 +10,8 @@ import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import ImageGen from "./pages/ImageGen";
 import VideoGen from "./pages/VideoGen";
+import TextToSpeech from "./pages/TextToSpeech";
+import ImageUpscaler from "./pages/ImageUpscaler";
 import Tools from "./pages/Tools";
 import Account from "./pages/Account";
 import AdminPanel from "./pages/AdminPanel";
@@ -50,6 +52,26 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <VideoGen />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tts"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TextToSpeech />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/upscaler"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ImageUpscaler />
                   </Layout>
                 </ProtectedRoute>
               }

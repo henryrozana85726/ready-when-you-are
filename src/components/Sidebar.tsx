@@ -4,6 +4,8 @@ import {
   LayoutDashboard,
   Image as ImageIcon,
   Video,
+  Volume2,
+  ZoomIn,
   MessageSquare,
   User,
   X,
@@ -33,6 +35,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
     { label: 'Home', path: '/', icon: LayoutDashboard },
     { label: 'Image Generation', path: '/image', icon: ImageIcon, requireAuth: true },
     { label: 'Video Generation', path: '/video', icon: Video, requireAuth: true },
+    { label: 'Text to Speech', path: '/tts', icon: Volume2, requireAuth: true },
+    { label: 'Image Upscaler', path: '/upscaler', icon: ZoomIn, requireAuth: true },
     { label: 'AI Assistant', path: '/tools', icon: MessageSquare, requireAuth: true },
     { label: 'Account', path: '/account', icon: User, requireAuth: true },
   ];

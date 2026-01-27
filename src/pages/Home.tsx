@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Image as ImageIcon, Video, MessageSquare, ArrowRight, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Video, Volume2, ZoomIn, MessageSquare, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const features = [
@@ -19,6 +19,22 @@ const features = [
     path: '/video',
     iconColor: 'text-accent',
     gradientClass: 'from-accent/20 to-accent/5',
+  },
+  {
+    title: 'Text to Speech',
+    description: 'Convert your text into natural-sounding speech using AI voices.',
+    icon: Volume2,
+    path: '/tts',
+    iconColor: 'text-warning',
+    gradientClass: 'from-warning/20 to-warning/5',
+  },
+  {
+    title: 'Image Upscaler',
+    description: 'Enhance and upscale your images with AI-powered technology.',
+    icon: ZoomIn,
+    path: '/upscaler',
+    iconColor: 'text-info',
+    gradientClass: 'from-info/20 to-info/5',
   },
   {
     title: 'AI Assistant',
