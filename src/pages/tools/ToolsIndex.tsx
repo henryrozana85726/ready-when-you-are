@@ -1,18 +1,32 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Rocket, Link2, FileImage, Volume2, ScanSearch, Wrench, Coins } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const tools = [
+interface Tool {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  iconColor: string;
+  bgColor: string;
+  price: string;
+  priceUnit: string;
+  status: 'active' | 'coming_soon';
+  path?: string;
+}
+
+const tools: Tool[] = [
   {
     title: 'Veo Launcher',
-    description: 'Luncurkan dan kelola proyek video generation dengan antrian batch processing untuk Veo 3.1.',
+    description: 'Quick access to Google Veo video generation labs untuk multiple akun Google.',
     icon: Rocket,
     iconColor: 'text-primary',
     bgColor: 'bg-primary/10',
-    price: '1.5',
-    priceUnit: 'per video',
-    status: 'coming_soon',
+    price: 'Free',
+    priceUnit: '',
+    status: 'active',
+    path: '/tools/veo-launcher',
   },
   {
     title: 'Affiliate Editor',
@@ -57,6 +71,14 @@ const tools = [
 ];
 
 const ToolsIndex: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleToolClick = (tool: Tool) => {
+    if (tool.status === 'active' && tool.path) {
+      navigate(tool.path);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
       {/* Header */}
@@ -77,7 +99,10 @@ const ToolsIndex: React.FC = () => {
         {tools.map((tool) => (
           <Card
             key={tool.title}
-            className="group relative overflow-hidden border-border hover:border-primary/50 transition-all duration-300 card-hover"
+            onClick={() => handleToolClick(tool)}
+            className={`group relative overflow-hidden border-border hover:border-primary/50 transition-all duration-300 card-hover ${
+              tool.status === 'active' ? 'cursor-pointer' : 'cursor-default'
+            }`}
           >
             <CardContent className="p-6 space-y-4">
               {/* Icon & Status */}
@@ -85,9 +110,13 @@ const ToolsIndex: React.FC = () => {
                 <div className={`p-3 rounded-lg ${tool.bgColor} border border-border group-hover:scale-110 transition-transform duration-300`}>
                   <tool.icon className={tool.iconColor} size={24} />
                 </div>
-                {tool.status === 'coming_soon' && (
+                {tool.status === 'coming_soon' ? (
                   <Badge variant="secondary" className="text-xs">
                     Coming Soon
+                  </Badge>
+                ) : (
+                  <Badge variant="default" className="text-xs bg-success text-success-foreground">
+                    Active
                   </Badge>
                 )}
               </div>
