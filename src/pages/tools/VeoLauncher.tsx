@@ -40,7 +40,7 @@ const VeoLauncher: React.FC = () => {
       </div>
 
       {/* Tabs Grid */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         {tabs.map((tabIndex) => (
           <Card 
             key={tabIndex} 
