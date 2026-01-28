@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Image as ImageIcon,
@@ -15,21 +15,10 @@ import {
   LogIn,
   Coins,
   Wrench,
-  Rocket,
-  Link2,
-  FileImage,
-  ScanSearch,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -41,11 +30,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme }) => {
   const { user, role, credits, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const [toolsOpen, setToolsOpen] = React.useState(
-    location.pathname.startsWith('/tools')
-  );
 
   const mainNavItems = [
     { label: 'Home', path: '/', icon: LayoutDashboard },
@@ -53,14 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
     { label: 'Video Generation', path: '/video', icon: Video, requireAuth: true },
     { label: 'Text to Speech', path: '/tts', icon: Volume2, requireAuth: true },
     { label: 'Image Upscaler', path: '/upscaler', icon: ZoomIn, requireAuth: true },
-  ];
-
-  const toolsItems = [
-    { label: 'Veo Launcher', path: '/tools/veo-launcher', icon: Rocket },
-    { label: 'Affiliate Editor', path: '/tools/affiliate-editor', icon: Link2 },
-    { label: 'Image Converter', path: '/tools/image-converter', icon: FileImage },
-    { label: 'Text to Speech', path: '/tools/text-to-speech', icon: Volume2 },
-    { label: 'Image/Video to Prompt', path: '/tools/image-video-to-prompt', icon: ScanSearch },
+    { label: 'Tools', path: '/tools', icon: Wrench, requireAuth: true },
   ];
 
   const adminItems = [
@@ -132,47 +109,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDark, toggleTheme 
             </NavLink>
           ))}
 
-          {/* Tools Section (Collapsible) */}
-          {user && (
-            <Collapsible open={toolsOpen} onOpenChange={setToolsOpen}>
-              <CollapsibleTrigger className="w-full">
-                <div
-                  className={cn(
-                    "flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-                    location.pathname.startsWith('/tools')
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Wrench size={20} />
-                    <span className="font-medium">Tools</span>
-                  </div>
-                  {toolsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pl-4 mt-1 space-y-1">
-                {toolsItems.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={handleNavClick}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm",
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )
-                    }
-                  >
-                    <item.icon size={16} />
-                    <span>{item.label}</span>
-                  </NavLink>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
 
           {/* Account */}
           {user && (
